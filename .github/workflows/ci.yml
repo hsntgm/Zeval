@@ -1,0 +1,77 @@
+name: CI
+
+# Every push (any branch) and every pull request into main: build both executables and run the quick tests.
+# Changes to documentation only do not start it.
+on:
+  push:
+    branches: ['**']
+    paths-ignore: ['**.md', 'LICENSE']
+  pull_request:
+    branches: [main]
+    paths-ignore: ['**.md', 'LICENSE']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PYTHONDONTWRITEBYTECODE: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install toolchain and Python packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm lld llvm
+          python -m pip install chess numpy
+          nasm -v
+          lld-link --version
+
+      - name: Build (Linux and Windows executables)
+        run: |
+          sh build/build.sh
+          cp dist/zeval zeval
+          cp dist/zeval.exe zeval.exe
+          sha256sum zeval zeval.exe
+
+      - name: Golden search (fixed depth, recorded reference)
+        run: python tests/t_golden.py ./zeval
+
+      - name: Move generation, UCI, robustness, time controls
+        run: |
+          python tests/t_perft.py
+          python tests/t_uci.py
+          python tests/t_robust.py
+          python tests/t_timecontrol.py
+          python tests/t_tactics.py
+          python tests/t_eval.py
+
+      - name: Lazy SMP and helper-code audit
+        run: |
+          python tests/t_smp.py ./zeval
+          python tests/t_smp_audit.py
+
+      - name: Tactics suite wiring, script lint
+        run: |
+          ./tactics.sh selftest
+          sh tools/lint_scripts.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zeval-${{ github.sha }}
+          path: |
+            dist/zeval
+            dist/zeval.exe
+          retention-days: 14

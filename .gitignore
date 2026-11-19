@@ -5,6 +5,7 @@ dist.saved.*/
 /zeval.exe
 /zeval.asm
 /SHA256SUMS.txt
+/release/
 candidates/*.exe
 candidates/.*.exe.new
 testbuild/*.exe

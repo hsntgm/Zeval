@@ -1,0 +1,64 @@
+name: Release
+
+# A tag vMAJOR.MINOR (e.g. v1.1) pushed on main: check the version, build, test, package and publish a GitHub release.
+# The release notes come from .github/release-notes/<tag>.md.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      PYTHONDONTWRITEBYTECODE: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install toolchain and Python packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm lld llvm zip
+          python -m pip install chess numpy
+
+      - name: Version of the tag
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          echo "VER=$VER" >> "$GITHUB_ENV"
+          sh tools/check_version.sh "$VER"
+          test -f ".github/release-notes/${GITHUB_REF_NAME}.md" || { echo "missing .github/release-notes/${GITHUB_REF_NAME}.md"; exit 1; }
+
+      - name: Build and test
+        run: |
+          sh build/build.sh
+          cp dist/zeval zeval
+          python tests/t_golden.py ./zeval
+          python tests/t_perft.py
+          python tests/t_uci.py
+          python tests/t_robust.py
+          python tests/t_timecontrol.py
+          python tests/t_tactics.py
+          python tests/t_eval.py
+          python tests/t_smp.py ./zeval
+          python tests/t_smp_audit.py
+          ./tactics.sh selftest
+          sh tools/lint_scripts.sh
+
+      - name: Package (release build, test kit, archives, SHA256SUMS)
+        run: sh tools/package_release.sh "$VER" release
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --title "Zeval $VER" \
+            --notes-file ".github/release-notes/${GITHUB_REF_NAME}.md" \
+            --verify-tag
