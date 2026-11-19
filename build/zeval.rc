@@ -1,0 +1,26 @@
+1 24 "zeval.manifest"
+
+1 VERSIONINFO
+FILEVERSION 1,0,0,0
+PRODUCTVERSION 1,0,0,0
+FILEOS 0x4
+FILETYPE 0x1
+{
+  BLOCK "StringFileInfo"
+  {
+    BLOCK "040904B0"
+    {
+      VALUE "CompanyName", "Hasan CALISIR"
+      VALUE "FileDescription", "Zeval 1.0 UCI chess engine (x86-64 assembly, kernel32 only)"
+      VALUE "FileVersion", "1.0.0.0"
+      VALUE "InternalName", "zeval"
+      VALUE "OriginalFilename", "zeval.exe"
+      VALUE "ProductName", "Zeval"
+      VALUE "ProductVersion", "1.0"
+    }
+  }
+  BLOCK "VarFileInfo"
+  {
+    VALUE "Translation", 0x0409, 0x04B0
+  }
+}

@@ -1,0 +1,38 @@
+# build outputs (build/build.sh, build/build.bat, tests/build1.sh, tools/build_candidates.sh)
+dist/
+dist.saved.*/
+/zeval
+/zeval.exe
+/zeval.asm
+/SHA256SUMS.txt
+candidates/*.exe
+candidates/.*.exe.new
+testbuild/*.exe
+tactics/bin/
+*.o
+*.obj
+*.res
+
+# python
+__pycache__/
+*.pyc
+
+# match.py opening-pool cache (recreated on demand)
+tests/openings_*.json
+
+# local results: tactics runs (tactics/reference/ is the recorded baseline and stays), SPRT games of sprt_candidate.bat, verify outputs
+tactics/results/*
+!tactics/results/.keep
+/results/
+/*.log
+verify_*_result*.txt
+
+# tuner: generated data and parameter files of local runs
+tuner/data/*
+!tuner/data/.gitkeep
+tuner/eval.asm.orig
+
+# local test builds
+zeval_tuned.exe
+zeval_see
+zeval_ppverify

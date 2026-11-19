@@ -1,0 +1,37 @@
+=== tag 1000ms: C6 vs DEF (reference: SF16) ===
+positions finished by both: 1146   (SF16: 1146)
+suite          n |            C6 |           DEF |          SF16 | C6-DEF  (C6-only/DEF-only, p)
+------------------------------------------------------------------------------------------------
+arasan2026   200 |      7   3.5% |      6   3.0% |    118  59.0% |   +1 (3/2, p=1.00)
+iq4          183 |    132  72.1% |    131  71.6% |    129  70.5% |   +1 (8/7, p=1.00)
+ecmgcp       183 |     88  48.1% |     89  48.6% |    142  77.6% |   -1 (9/10, p=1.00)
+sbd          134 |    108  80.6% |    107  79.9% |    107  79.9% |   +1 (8/7, p=1.00)
+classics     122 |     63  51.6% |     61  50.0% |     95  77.9% |   +2 (6/4, p=0.75)
+mates         24 |     15  62.5% |     14  58.3% |     19  79.2% |   +1 (2/1, p=1.00)
+wac          300 |    290  96.7% |    289  96.3% |    275  91.7% |   +1 (3/2, p=1.00)
+------------------------------------------------------------------------------------------------
+HARD (no WAC)  846 |    413  48.8% |    408  48.2% |    610  72.1% |   +5 (36/31, p=0.63)
+ALL         1146 |    703  61.3% |    697  60.8% |    885  77.2% |   +6 (39/33, p=0.56)
+
+HARD solve-rate difference C6-DEF: +0.6 pp  (95% bootstrap CI -1.3 .. +2.5 pp)
+
+Positions SF16 solves in this time (HARD): 610/846
+   C6    on that subset: 339/610 = 55.6%
+   DEF   on that subset: 328/610 = 53.8%
+   SF16 unsolved (possible suspect/very hard): 236
+
+Solution-move type / phase (HARD, both under test)
+   type:avoid(am)              n=  10  C6  50.0%  DEF  40.0%  SF16  60.0%
+   type:capture                n= 307  C6  45.9%  DEF  45.3%  SF16  73.9%
+   type:castle                 n=  67  C6  82.1%  DEF  83.6%  SF16  79.1%
+   type:check                  n=  59  C6  61.0%  DEF  59.3%  SF16  74.6%
+   type:quiet                  n= 403  C6  43.7%  DEF  43.2%  SF16  69.5%
+   phase:endgame(<=12 men)      n=  39  C6  48.7%  DEF  48.7%  SF16  79.5%
+   phase:middlegame(>12 men)    n= 807  C6  48.8%  DEF  48.2%  SF16  71.7%
+
+Time-to-solution on positions both solve (n=377): median C6 37 ms, DEF 36 ms; mean 125 / 139 ms
+   C6    mean depth 20.1  mean nps 2.67 M
+   DEF   mean depth 19.0  mean nps 2.73 M
+   SF16  mean depth 30.8  mean nps 0.65 M
+
+Unsolved by ALL of the engines: 150 of 846 HARD positions

@@ -1,0 +1,69 @@
+{
+ "arasan2026": {
+  "positions": 200,
+  "dupes_removed": 0,
+  "dropped": [],
+  "desc": "Arasan Test Suite 2026 (J. Dart) - hard tactical + endgame, newest",
+  "with_am": 3,
+  "multi_bm": 0
+ },
+ "iq4": {
+  "positions": 183,
+  "dupes_removed": 0,
+  "dropped": [],
+  "desc": "IQ4 - hard tactical middlegame positions",
+  "with_am": 0,
+  "multi_bm": 20
+ },
+ "ecmgcp": {
+  "positions": 183,
+  "dupes_removed": 0,
+  "dropped": [],
+  "desc": "ECM / GCP - Encyclopedia of Chess Middlegames, tactics",
+  "with_am": 0,
+  "multi_bm": 1
+ },
+ "sbd": {
+  "positions": 134,
+  "dupes_removed": 0,
+  "dropped": [],
+  "desc": "Silent But Deadly - quiet-move tactics (Chris Whittington collection)",
+  "with_am": 0,
+  "multi_bm": 3
+ },
+ "wac": {
+  "positions": 300,
+  "dupes_removed": 0,
+  "dropped": [],
+  "desc": "Win At Chess (300) - classic, saturated; identical to tests/wac.epd of the engine package",
+  "with_am": 1,
+  "multi_bm": 37
+ },
+ "classics": {
+  "positions": 122,
+  "dupes_removed": 1,
+  "dropped": [
+   [
+    "kaufman",
+    3,
+    "unparsable/illegal move"
+   ],
+   [
+    "kaufman",
+    6,
+    "unparsable/illegal move"
+   ]
+  ],
+  "desc": "LCT II/Lapuce2 + Kaufman + Bratko-Kopec + Nolot + BT2630 (small classic sets, concatenated)",
+  "with_am": 7,
+  "multi_bm": 3
+ },
+ "mates": {
+  "positions": 24,
+  "dupes_removed": 0,
+  "dropped": [],
+  "desc": "Hard mates (Blass/Uri), distance-to-mate 13-26 moves",
+  "with_am": 0,
+  "multi_bm": 1
+ }
+}

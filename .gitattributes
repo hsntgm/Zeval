@@ -1,0 +1,19 @@
+# Line endings are part of what the build and the tests check, so they are fixed here instead of being left to core.autocrlf.
+* text=auto eol=lf
+
+# cmd.exe batch files need CRLF
+*.bat text eol=crlf
+
+# test data compared byte for byte (tactics/SHA256SUMS.txt, tactics selftest, t_golden, t_epd): never converted.
+# Some downloaded suites in tactics/suites_epd contain CR and NUL bytes on purpose (tactics/tools/build_suites.py cleans them).
+*.epd -text
+*.jsonl -text
+tactics/suites/** -text
+tactics/suites_epd/** -text
+tactics/reference/** -text
+tactics/SHA256SUMS.txt -text
+tests/golden_*.json -text
+tests/ordering_ref_*.json -text
+
+# built files, in case one is ever added by hand
+*.exe binary

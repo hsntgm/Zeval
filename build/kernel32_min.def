@@ -1,0 +1,16 @@
+LIBRARY KERNEL32.dll
+EXPORTS
+CloseHandle
+CreateEventA
+CreateThread
+ExitProcess
+GetConsoleMode
+GetStdHandle
+QueryPerformanceCounter
+QueryPerformanceFrequency
+ReadFile
+SetEvent
+VirtualAlloc
+VirtualFree
+WaitForSingleObject
+WriteFile

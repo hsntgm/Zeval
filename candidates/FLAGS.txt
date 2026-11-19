@@ -1,0 +1,47 @@
+# Candidate builds for SPRT tests: NUNITS=32 NASMFLAGS="<flags>" sh build/build.sh  ->  dist/zeval.exe, copied to candidates/zeval_<NAME>.exe
+# (tools/build_candidates.sh builds all of them).  Each one is the default build with ONE change: a part switched off or a parameter changed (A1..A4, X*), the reference
+# search (A0), the material + PST evaluation (E0), or a switch that is off by default turned on (A5, E*, S*, M1).
+# sprt_candidate.bat NAME tests zeval_NAME.exe against zeval.exe (the default):  Elo = candidate - default.  A clearly negative Elo means that the removed part helps.
+A0_DEV8: -DDEV8SEARCH
+A1_noTM: -DTM_STAB=0 -DTM_FALL=0 -DTM_INST=0 -DTM_EFFORT=0
+A2_noPRUNE: -DRAZOR=0 -DRFP_EXT=0 -DFUT_LMRD=0 -DNMP_TTG=0 -DTTCUT_COND=0
+A3_noLMR: -DLMR_CUT=0 -DLMR_IMPR=0 -DLMR_HIST=0 -DLMR_TTC=0 -DLMR_RES=0
+A4_noEVALNMP: -DEVAL_TT=0 -DNMP_CUT=0
+A5_IIR: -DIIR_CUT=1
+E0_PSTEVAL: -DEVAL_FULL=0
+X1_NOENDG: -DEV_ENDG=0
+X2_NOSCALE: -DEV_SCALE=0
+X3_SCALEV1: -DEV_SCALE2=0
+X4_NOENDG2: -DEV_ENDG2=0
+X5_NOCONTHIST: -DCONTHIST=0
+X6_CHNOPRUNE: -DCH_PRUNE=0
+M1_CHSHARED: -DCH_SHARED=1
+X9_NOSING: -DSING=0
+X10_TTD3: -DSE_TTD=3
+X11_MIND8: -DSE_MIND=8
+X12_TMOLD: -DTM_CURVE=0
+X13_TMCMORE: -DTMC_F0=160 -DTMC_F1=280
+E4_LAZY: -DEV_LAZY=1
+X5_NOTHREATS: -DEV_THREAT2=0
+X6_NOPINS: -DEV_PINS=0
+X7_NOKDANGER: -DEV_KDANGER=0
+X8_NOPASSED2: -DEV_PASSED2=0
+E9_PAWNS2: -DEV_PAWNS2=1
+E10_SHELTER: -DEV_SHELTER=1
+E11_PIECES2: -DEV_PIECES2=1
+E12_IMBAL: -DEV_IMBAL=1
+E13_SPACE: -DEV_SPACE=1
+E14_INIT: -DEV_INIT=1
+E15_GRAIN: -DEV_GRAIN=1
+E16_R50: -DEV_R50=1
+E17_CORR: -DEV_CORR=1
+S0_NOEVCACHE: -DEVCACHE=0
+S1_SWPOPCNT: -DHWPOPCNT=0
+S2_PHASH: -DEV_PHASH=1
+# The groups of C6_COMBINED (= C1 + C2 + C3 + C4, on by default), each on top of the reference search:  NASMFLAGS="-DDEV8SEARCH <flags>"
+# C1_TM: -DTM_STAB=1 -DTM_FALL=1 -DTM_INST=1 -DTM_EFFORT=1
+# C2_PRUNE: -DRAZOR=1 -DRFP_EXT=1 -DFUT_LMRD=1 -DNMP_TTG=1 -DTTCUT_COND=1
+# C3_LMR: -DLMR_CUT=1 -DLMR_IMPR=1 -DLMR_HIST=1 -DLMR_TTC=1 -DLMR_RES=1
+# C4_EVALNMP: -DEVAL_TT=1 -DNMP_CUT=1
+# C5_IIR: -DIIR_CUT=1
+# C6_COMBINED: C1 + C2 + C3 + C4
