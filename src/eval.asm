@@ -310,33 +310,33 @@
 %ifndef EV_GRAINS
 %define EV_GRAINS 8                 ; output grain (centipawns) with EV_GRAIN
 %endif
-; initiative / complexity weights (EV_INIT; build constants for SPSA, -DTUNE options T31 .. T39)
+; initiative / complexity weights (EV_INIT; fitted by tuner/fit_init.py; -DTUNE options T31 .. T39)
 %ifndef IN_PASSED
-%define IN_PASSED 4
+%define IN_PASSED 2
 %endif
 %ifndef IN_PAWNS
-%define IN_PAWNS 6
+%define IN_PAWNS 1
 %endif
 %ifndef IN_OUTFL
-%define IN_OUTFL 4
+%define IN_OUTFL 1
 %endif
 %ifndef IN_BOTH
-%define IN_BOTH 10
+%define IN_BOTH 7
 %endif
 %ifndef IN_INFIL
-%define IN_INFIL 12
+%define IN_INFIL -5
 %endif
 %ifndef IN_NONPM
-%define IN_NONPM 25
+%define IN_NONPM 35
 %endif
 %ifndef IN_UNWIN
-%define IN_UNWIN 21
+%define IN_UNWIN 23
 %endif
 %ifndef IN_BIAS
-%define IN_BIAS 53
+%define IN_BIAS 8
 %endif
 %ifndef IN_MGADD
-%define IN_MGADD 24
+%define IN_MGADD -2
 %endif
 %ifndef EV_LAZYT2
 %define EV_LAZYT2 700               ; lazy evaluation, second stage: threshold after the first pass (centipawns)
@@ -509,7 +509,8 @@ matmg:      dw 0,82,337,365,477,1025,0
 mateg:      dw 0,94,281,297,512,936,0
 
 ; The values below were tuned with tuner/tune.py (about 4 million quiet positions, K 3.154); the tables hold pst = tuned(pst + material)
-; - material.  Fitted separately: EG2_* (tuner/fit_special.py) and SC_* (tuner/fit_scale.py).  Hand-set: KD_*, IN_*, EV_LAZYT*.
+; - material.  Fitted separately: EG2_* (tuner/fit_special.py), SC_* (tuner/fit_scale.py), IN_* (tuner/fit_init.py).  imb_* were tuned
+; alone (--free imbalance --from-zero, prior 100).  Hand-set: KD_*, EV_LAZYT*.
 ; piece-square tables: rank 8 first, files a..h, White's point of view
 pst_mg:
     dw    0,    0,    0,    0,    0,    0,    0,    0
@@ -977,47 +978,47 @@ evp:                            ; terms of the full evaluation, layout: EV_* abo
     SC  -11,   -4
 ; imb_ours
     SC    0,    0
-    SC  -19,   30
-    SC    2,    5
-    SC  -18,   23
-    SC   17,   19
-    SC   -9,  -23
+    SC   -6,   10
+    SC    1,    4
+    SC   -2,    6
+    SC   16,    7
+    SC   -4,  -25
     SC    0,    0
-    SC   29,   -7
-    SC   -3,  -45
-    SC  -33,  -38
-    SC  -23,   42
-    SC   18,   18
-    SC  -21,  -40
-    SC   12,  -72
-    SC    8,  -56
-    SC   10,    7
-    SC   27,   36
-    SC -111,  -47
-    SC -104,  -71
-    SC -144, -112
-    SC -109, -160
+    SC   15,    1
+    SC  -12,  -17
+    SC  -56,   16
+    SC    9,    3
+    SC   13,    8
+    SC  -17,  -25
+    SC  -17,    5
+    SC   -2,  -23
+    SC   -8,   -7
+    SC   27,   12
+    SC  -71,  -74
+    SC  -65,  -31
+    SC  -62, -142
+    SC -164, -127
 ; imb_theirs
     SC    0,    0
-    SC  -22,   29
+    SC   -8,    9
     SC    0,    0
-    SC  -16,   22
-    SC   24,   15
+    SC   -4,    0
+    SC   17,   12
     SC    0,    0
-    SC  -13,   34
-    SC    5,   38
-    SC   -9,   21
+    SC   -2,    4
+    SC   13,   12
+    SC   11,  -19
     SC    0,    0
-    SC  -28,   34
-    SC   19,   33
-    SC  -14,   25
-    SC    5,  -22
+    SC   -9,  -11
+    SC   12,   18
+    SC   -5,    5
+    SC  -21,   19
     SC    0,    0
-    SC    3,    3
-    SC   54,   61
-    SC   80,    2
-    SC   57,  -31
-    SC   48,  -17
+    SC  -40,  -24
+    SC   33,   49
+    SC   52,   38
+    SC   34,   49
+    SC   -8,   60
     SC    0,    0
 ; space
     SC    5,  -16
