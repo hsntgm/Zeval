@@ -149,6 +149,40 @@
 ; ----   0 TT move first at a node that may test   1 + depth >= SE_MIND   2 + lower / exact bound   3 + TT depth   4 + no mate score, ply limit
 ; ----   5 exclusion searches (TT move legal)   6 singular   7 multi-cut   8 neither   9 nodes of the exclusion searches
 ; ----   12 + 3 * c + k: depth class c (6-7, 8-9, 10-12, 13+), k = 0 searches, 1 singular, 2 multi-cut
+; ---- PCVERIFY (test build, ProbCut): counters of the main thread, console command "pcstat" prints pcstc[0..15]:
+; ----   0 nodes that tried ProbCut   1 captures searched   2 captures past the quiescence check   3 cuts (would-be cuts in PCVERIFY)
+; ----   4 would-be cuts confirmed by the full search   5 refuted (the node did not fail high)   8 + 2 * c / 9 + 2 * c: cuts / refuted by depth
+; ----   class c (5-6, 7-8, 9-11, 12+)
+%macro PCCNT 1
+%ifdef PCVERIFY
+%if UNIT == 0
+    inc qword [pcstc+%1*8]
+%endif
+%endif
+%endmacro
+%macro PCDCNT 1
+%ifdef PCVERIFY
+%if UNIT == 0
+    push rax
+    push rcx
+    mov eax, [rbp+L_DEPTH]
+    xor ecx, ecx
+    cmp eax, 7
+    jl %%c
+    inc ecx
+    cmp eax, 9
+    jl %%c
+    inc ecx
+    cmp eax, 12
+    jl %%c
+    inc ecx
+%%c:lea ecx, [rcx*2+%1]
+    inc qword [pcstc+rcx*8]
+    pop rcx
+    pop rax
+%endif
+%endif
+%endmacro
 %macro SECNT 1
 %ifdef SESTAT
 %if UNIT == 0
@@ -1413,7 +1447,12 @@ qsearch:
 %define L_MOVES  160
 %define L_SCORES 1184
 %define L_QUIETS 2208
+%ifdef PCVERIFY
+%define L_PCW    2480              ; PCVERIFY only: ProbCut would have cut this node
+%define SFRAME   2496
+%else
 %define SFRAME   2480
+%endif
 ; scratch in the thread-local array sevals (indices MAXPLY .. MAXPLY+15, never used as a ply index)
 %define S_BASE   sevals+MAXPLY*4
 %define S_NMPMIN S_BASE+0           ; dd  NMP verification: no null move below this ply while a verification search runs (0 = off)
@@ -1478,6 +1517,9 @@ search:
     mov [rbp+L_BETA], edx
     mov [rbp+L_NULLOK], ecx
     mov [rbp+L_CUT], r9d            ; cutNode
+%ifdef PCVERIFY
+    mov dword [rbp+L_PCW], 0
+%endif
 %if SING
     mov eax, [sexcl]                ; an exclusion search (SING): the excluded move; the children of this call see 0
     mov [rbp+L_EXCL], eax
@@ -1997,8 +2039,149 @@ search:
 %endif
     mov eax, [rbp+L_TMP]
     jmp .retv
+%if PROBCUT
+    ; ---- ProbCut (PROBCUT, see p1_data.asm): a capture that wins enough by exchange and holds pcBeta = beta + PC_M at reduced depth cuts
+.gen:
+    cmp dword [rbp+L_PV], 0
+    jne .gen2
+    cmp dword [rbp+L_ROOT], 0
+    jne .gen2
+    cmp dword [rbp+L_INCHK], 0
+    jne .gen2
+%if SING
+    cmp dword [rbp+L_EXCL], 0
+    jne .gen2
+%endif
+    cmp dword [rbp+L_DEPTH], PC_MIND
+    jl .gen2
+    mov eax, [rbp+L_BETA]
+    cmp eax, -MATEB
+    jle .gen2
+    cmp eax, MATEB - PC_M
+    jge .gen2
+    add eax, PC_M
+    mov [rbp+L_OALPHA], eax         ; pcBeta (L_OALPHA is set again after the move generation)
+%if NEEDTTD
+    test byte [rbp+L_TTB], 2        ; an upper bound (or exact) below pcBeta, deep enough: the captures will not hold it
+    jz .pc0
+    cmp [rbp+L_TTSC], eax
+    jge .pc0
+    mov ecx, [rbp+L_DEPTH]
+    sub ecx, 3
+    cmp [rbp+L_TTDP], ecx
+    jge .gen2
+.pc0:
+%endif
+    PCCNT 0
+    lea rdi, [rbp+L_MOVES]
+    mov esi, 1                      ; captures (and promotions)
+    call gen
+    lea rcx, [rbp+L_MOVES]
+    sub rax, rcx
+    shr eax, 2
+    mov [rbp+L_N], eax
+    lea rdi, [rbp+L_MOVES]
+    lea rsi, [rbp+L_SCORES]
+    mov edx, [rbp+L_N]
+    mov ecx, [rbp+L_TTMV]
+    call score_moves
+    mov dword [rbp+L_IDX], 0
+.pcl:
+    mov edx, [rbp+L_IDX]
+    cmp edx, [rbp+L_N]
+    jge .gen2
+    lea rdi, [rbp+L_MOVES]
+    lea rsi, [rbp+L_SCORES]
+    mov ecx, [rbp+L_N]
+    call pick
+    mov [rbp+L_MV], eax
+    inc dword [rbp+L_IDX]
+    mov edi, eax
+    mov ecx, [ply]
+    mov esi, [rbp+L_OALPHA]
+    sub esi, [sevals+rcx*4]         ; the capture must win at least pcBeta - eval by exchange (the raw static eval, not the TT-adjusted one)
+    call see_ge
+    test eax, eax
+    jz .pcl
+%if CONTHIST
+    mov edi, [rbp+L_MV]
+    call ch_row
+    mov ecx, [ply]
+    mov [chp+rcx*8+16], rax
+%endif
+    mov edi, [rbp+L_MV]
+    call domove
+    test eax, eax
+    jz .pcill
+    PCCNT 1
+    call in_check
+    mov [rbp+L_GIVES], eax
+    inc dword [ply]
+    xor edi, edi                    ; quiescence first
+    mov esi, [rbp+L_OALPHA]
+    neg esi
+    lea edx, [rsi+1]
+    xor ecx, ecx
+    mov r8d, [rbp+L_GIVES]
+    mov r9d, [rbp+L_CUT]
+    xor r9d, 1
+    call search
+    neg eax
+    cmp eax, [rbp+L_OALPHA]
+    jl .pcu
+    PCCNT 2
+    mov edi, [rbp+L_DEPTH]          ; then the reduced search
+    sub edi, PC_R
+    mov esi, [rbp+L_OALPHA]
+    neg esi
+    lea edx, [rsi+1]
+    mov ecx, 1
+    mov r8d, [rbp+L_GIVES]
+    mov r9d, [rbp+L_CUT]            ; cutNode of the child: !cutNode, as for the first move
+    xor r9d, 1
+    call search
+    neg eax
+.pcu:
+    mov [rbp+L_TMP], eax
+    dec dword [ply]
+    call undomove
+    STOPTEST
+    jne .ret0
+    mov eax, [rbp+L_TMP]
+    cmp eax, [rbp+L_OALPHA]
+    jl .pcl
+    cmp eax, MATEB                  ; a mate score from a reduced search: no cut, the normal search decides
+    jge .pcl
+    PCCNT 3
+    PCDCNT 8
+%ifdef PCVERIFY
+    mov dword [rbp+L_PCW], 1        ; test build: no cut; the normal search runs and .store counts whether the node really fails high
+    jmp .gen2
+%else
+    mov rax, [hashk]                ; lower bound at depth - PC_R + 1 with the capture as move
+    mov edi, [rbp+L_MV]
+%if EVCACHE
+    mov esi, [rbp+L_TTEV]
+    shl esi, 16
+    or edi, esi
+%endif
+    mov edx, [rbp+L_TMP]
+    mov esi, [rbp+L_DEPTH]
+    sub esi, PC_R - 1
+    mov ecx, 1
+    call tt_store
+    mov eax, [rbp+L_TMP]
+    sub eax, PC_M                   ; value - (pcBeta - beta): still >= beta
+    jmp .retv
+%endif
+.pcill:
+    call undomove
+    jmp .pcl
+.gen2:
+%else
     ; ---- move generation
 .gen:
+%endif
     lea rdi, [rbp+L_MOVES]
     xor esi, esi
     call gen
@@ -2274,6 +2457,12 @@ search:
     SECNT 7                         ; another move reaches singularBeta >= beta: multi-cut
     SEDCNT 2
 %if SING == 2 && SE_MC
+%ifdef PCVERIFY
+    cmp dword [rbp+L_PCW], 0        ; test build: a would-be ProbCut node that the multi-cut cuts: confirmed (singularBeta >= beta)
+    je .pcvm
+    PCCNT 4
+.pcvm:
+%endif
     jmp .retv                       ; eax = singularBeta
 %endif
     jmp .sex
@@ -2810,6 +2999,19 @@ search:
 .store:
     STOPTEST
     jne .ret0
+%ifdef PCVERIFY
+    cmp dword [rbp+L_PCW], 0        ; test build: ProbCut wanted to cut here - did the full search fail high?
+    je .pcv0
+    mov eax, [rbp+L_BEST]
+    cmp eax, [rbp+L_BETA]
+    jl .pcvf
+    PCCNT 4
+    jmp .pcv0
+.pcvf:
+    PCCNT 5
+    PCDCNT 9
+.pcv0:
+%endif
 %if SING
     cmp dword [rbp+L_EXCL], 0       ; exclusion search: neither the table nor the correction history learn from it
     je .sto

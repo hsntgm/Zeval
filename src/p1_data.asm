@@ -398,6 +398,24 @@ section .bss  align=64
 %ifndef SE_MC
 %define SE_MC 1              ; SING 2: 0 = no multi-cut (the extension only; diagnosis)
 %endif
+; ---- PROBCUT 1: at a node that is not PV, not the root, not in check, not an exclusion search, depth >= PC_MIND and beta not a mate score:
+; ---- every capture whose SEE reaches pcBeta - eval (pcBeta = beta + PC_M, eval = the raw static eval) is made and searched on the null
+; ---- window around pcBeta, first by quiescence, then (if that holds) at depth - PC_R.  A result >= pcBeta that is not a mate score is
+; ---- stored as a lower bound at depth - PC_R + 1 and the node returns result - PC_M.  Skipped when the TT entry has an upper bound below
+; ---- pcBeta at depth >= depth - 3.  0 = off.  -DPCVERIFY (test build): no cut; the normal search runs and counts whether the node really
+; ---- fails high (console command "pcstat", see PCVERIFY in p4_search.asm).
+%ifndef PROBCUT
+%define PROBCUT 0
+%endif
+%ifndef PC_MIND
+%define PC_MIND 5
+%endif
+%ifndef PC_M
+%define PC_M 50
+%endif
+%ifndef PC_R
+%define PC_R 4
+%endif
 %ifndef NEG_EXT
 %define NEG_EXT 0            ; SING 2: negative extension of a TT move that is neither singular nor a multi-cut (see above)
 %endif

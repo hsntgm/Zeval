@@ -57,6 +57,9 @@ c_chsum:      db "chsum",0
 %ifdef SESTAT
 c_sestat:     db "sestat",0
 %endif
+%ifdef PCVERIFY
+c_pcstat:     db "pcstat",0
+%endif
 %ifdef ORDSTAT
 c_ordstat:    db "ordstat",0
 s_ordstat:    db "ordstat "
@@ -1609,6 +1612,28 @@ _start:
     jmp .loop
 .n7s:
 %endif
+%ifdef PCVERIFY
+    mov edi, c_pcstat               ; (test build) ProbCut counters of the main thread, see PCVERIFY in p4_search.asm
+    call cmdcmp
+    test eax, eax
+    jz .n7pc
+    OBS c_pcstat, 6
+    push rbx
+    xor ebx, ebx
+.pl:mov al, ' '
+    call ob_ch
+    mov rax, [pcstc+rbx*8]
+    call ob_num
+    inc ebx
+    cmp ebx, 16
+    jb .pl
+    pop rbx
+    mov al, 10
+    call ob_ch
+    call ob_flush
+    jmp .loop
+.n7pc:
+%endif
 %ifdef EVALPROF
     mov edi, c_evalprof             ; (test builds) eval calls and rdtsc cycles of the main thread
     call cmdcmp
@@ -1696,6 +1721,14 @@ game_over_quiet:
     ret
 %endif                          ; UNIT == 0
 
+%ifdef PCVERIFY
+%if UNIT == 0
+section .bss
+alignb 64
+pcstc:      resq 16
+section .text
+%endif
+%endif
 %ifdef SESTAT
 %if UNIT == 0
 section .bss
