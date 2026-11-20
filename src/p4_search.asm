@@ -1408,7 +1408,7 @@ qsearch:
 %define L_TMP2   144               ; CONTHIST with CH_BL: the continuation bonus of a cutoff
 %define L_EXCL   148               ; SING: the move this search excludes (0 = a normal search)
 %define L_TTEV   152               ; eval code of this position from the table (EVCACHE), see Q_TTEV
-%define L_SEXT   156               ; SING 2: 1 = the TT move was found singular (one ply deeper)
+%define L_SEXT   156               ; SING 2: added to the depth of the first move: 1 singular, -1 negative extension (NEG_EXT)
 %define NOEVAL   0x40000000
 %define L_MOVES  160
 %define L_SCORES 1184
@@ -2279,6 +2279,18 @@ search:
     jmp .sex
 .se0:
     SECNT 8
+%if SING == 2 && NEG_EXT
+    mov eax, [rbp+L_TTSC]           ; negative extension: the TT move is not singular and the node did not cut
+    cmp eax, [rbp+L_BETA]
+    jge .sneg                       ; ttScore >= beta: other moves are about as good, the TT move gets one ply less
+%if NEG_EXT == 2
+    cmp dword [rbp+L_CUT], 0
+    jne .sneg                       ; expected cut node: the same
+%endif
+    jmp .sex
+.sneg:
+    mov dword [rbp+L_SEXT], -1      ; the TT move is the first legal move: consumed at its depth below, never by another move
+%endif
 .sex:
 %endif
 %if CONTHIST
@@ -2420,7 +2432,7 @@ search:
     mov eax, [rbp+L_DEPTH]
     dec eax
 %if SING == 2
-    add eax, [rbp+L_SEXT]           ; singular TT move: one ply deeper (only the first move can have it)
+    add eax, [rbp+L_SEXT]           ; TT move: +1 singular, -1 negative extension (only the first move can have it)
     mov dword [rbp+L_SEXT], 0
 %endif
     mov [rbp+L_NEWD], eax

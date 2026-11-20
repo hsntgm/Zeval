@@ -377,6 +377,8 @@ section .bss  align=64
 ; ---- no EVAL_TT, no null move and no EVALDIFF_HIST (called with nullok = 0), no nested test; "no legal move left" returns alpha.
 ; ----   value < singularBeta              -> the TT move is singular: searched one ply deeper (SING 2)
 ; ----   singularBeta >= beta <= value     -> multi-cut: the node returns singularBeta at once (SING 2)
+; ----   neither, NEG_EXT 1: ttScore >= beta -> the TT move is searched one ply SHALLOWER (negative extension); NEG_EXT 2: also at an
+; ----   expected cut node (L_CUT) whatever ttScore.  0 = off.
 ; ---- 0 = off.  1 = the exclusion search runs but its result is not used (cost only).  2 = extension and multi-cut.
 ; ---- -DSESTAT (test build): counters of the main thread, console command "sestat" (tests/t_singular.py).  -DSEVERIFY (test build): an
 ; ---- exclusion search that is in check (exit code 8), makes the excluded move (9), reaches the TT store (10) or searches another position (11)
@@ -395,6 +397,9 @@ section .bss  align=64
 %endif
 %ifndef SE_MC
 %define SE_MC 1              ; SING 2: 0 = no multi-cut (the extension only; diagnosis)
+%endif
+%ifndef NEG_EXT
+%define NEG_EXT 0            ; SING 2: negative extension of a TT move that is neither singular nor a multi-cut (see above)
 %endif
 %ifdef SMPTEST
 %undef CH_SHARED
