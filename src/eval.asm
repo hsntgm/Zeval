@@ -124,9 +124,11 @@
 ;              better of the king square and g1 / c1), plus the distance of the own king to its nearest pawn.
 ;   EV_PIECES2 = EV_PBISH (bishop pawns, long diagonal, bishop outpost), EV_PMINOR (reachable outpost, minor behind pawn, king protectors),
 ;              EV_PROOK (closed file, trapped rook, rook on the 7th, connected rooks, rook behind a passer), EV_PQUEEN (weak queen).
-;   EV_IMBAL   quadratic material imbalance over the piece counts of both sides (42 entries).
+;   EV_IMBAL   quadratic material imbalance over the piece counts of both sides (42 entries).  (pair x pair) and (bishop x pair) stay 0:
+;              they would repeat the bishop-pair term.
 ;   EV_SPACE   space in the middlegame: safe central squares behind the own pawns, weighted by the number of own pieces.
-;   EV_INIT    initiative / complexity correction of mg and eg (not linear, outside the tuner; forced to 0 by EV_TUNEMODE).
+;   EV_INIT    initiative / complexity correction of mg and eg (not linear, outside the tuner; forced to 0 by EV_TUNEMODE).  'Almost
+;              unwinnable' = no passed pawn, outflanking < 0 and pawns on one flank only.
 ;   EV_GRAIN   0 (default; forced to 0 by EV_TUNEMODE).  1: the tapered score is truncated to a multiple of EV_GRAINS (8) before sign and tempo.
 ;   -DTUNE: KD_*, EV_LAZYT, EV_LAZYT2, IN_* (and EV_R50C of the search) are read from the option table T20 .. T39 instead of immediates.
 ;   EVALPROF   test builds only (-DEVALPROF): the main thread counts eval calls and their rdtsc cycles; console command "evalprof" prints them.
@@ -974,13 +976,13 @@ evp:                            ; terms of the full evaluation, layout: EV_* abo
 ; weak_queen
     SC  -11,   -4
 ; imb_ours
-    SC    3,   13
+    SC    0,    0
     SC  -19,   30
     SC    2,    5
     SC  -18,   23
     SC   17,   19
     SC   -9,  -23
-    SC    7,   27
+    SC    0,    0
     SC   29,   -7
     SC   -3,  -45
     SC  -33,  -38
@@ -3343,10 +3345,13 @@ section .text
     mov edx, ecx
     KMUL ecx, 34, IN_BOTH
     add esi, ecx
-    test edx, edx                   ; almost unwinnable: outflanking < 0, pawns on one flank only
+    test edx, edx                   ; almost unwinnable: no passed pawn, outflanking < 0, pawns on one flank only
     jnz %%nu
     test r10d, r10d
     jns %%nu
+    mov ecx, [rsp+EV_NPASS]
+    or ecx, [rsp+EVS+EV_NPASS]
+    jnz %%nu
     KSUB esi, 37, IN_UNWIN
 %%nu:
     mov eax, [cnt+2]                ; no pieces at all (N B R Q of both sides)

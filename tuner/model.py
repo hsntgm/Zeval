@@ -133,7 +133,7 @@ def initiative(mg, eg, aux):
     both = bool(aux["pawns"] & QSIDE and aux["pawns"] & KSIDE)
     c = (IN["IN_PASSED"] * aux["npass"] + IN["IN_PAWNS"] * popcount(aux["pawns"]) + IN["IN_OUTFL"] * outfl
          + IN["IN_INFIL"] * ((wk >> 3) > 3 or (bk >> 3) < 4) + IN["IN_BOTH"] * both)
-    if not both and outfl < 0:
+    if not both and outfl < 0 and not aux["npass"]:
         c -= IN["IN_UNWIN"]
     if not aux["pieces"]:
         c += IN["IN_NONPM"]
@@ -216,7 +216,16 @@ def group_mask(free):
             tapered(*term_range(g))
         else:
             raise SystemExit(f"unknown parameter group '{g}' (use: all, pst, p n b r q k, bp, tempo, {', '.join(TERM_GROUPS)}, or a term: {', '.join(TERM_OFS)})")
+    for i in never_free():
+        m[i] = m[NF + i] = False
     return m
+
+
+def never_free():
+    """flat (mg) indices the tuner never moves: imb_ours (pair x pair) and (bishop x pair) repeat the bishop-pair term (both stay 0 in
+    src/eval.asm); the diagonal of imb_theirs cancels between the two sides (no information in any data)"""
+    o, t = term_range("imb_ours")[0], term_range("imb_theirs")[0]
+    return [o + 0, o + 6] + [t + d for d in (0, 2, 5, 9, 14, 20)]
 
 
 # ------------------------------------------------------------------------------------------------ the asm tables
