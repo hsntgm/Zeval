@@ -127,6 +127,11 @@
 ;   EV_IMBAL   quadratic material imbalance over the piece counts of both sides (42 entries).  (pair x pair) and (bishop x pair) stay 0:
 ;              they would repeat the bishop-pair term.
 ;   EV_SPACE   space in the middlegame: safe central squares behind the own pawns, weighted by the number of own pieces.
+;   EV_KLINES  1 (default since Zeval 1.1).  Lines against their king (second pass, attacker's view).  Files: their king's file clamped to b..g, with its two
+;              neighbours; "below" = the ranks between their king and us.  kl_open per file without a pawn of either side below their
+;              king; kl_storm per file where our pawn nearest to their king stands at most 3 ranks below it and is not blocked by their
+;              pawn; kl_heavy per rook / queen of ours on a file without their pawn below their king.  Fitted on the tuning data
+;              (Zeval 1.1, tuner/params/z11_klines/): mg only.
 ;   EV_INIT    initiative / complexity correction of mg and eg (not linear, outside the tuner; forced to 0 by EV_TUNEMODE).  'Almost
 ;              unwinnable' = no passed pawn, outflanking < 0 and pawns on one flank only.
 ;   EV_GRAIN   0 (default; forced to 0 by EV_TUNEMODE).  1: the tapered score is truncated to a multiple of EV_GRAINS (8) before sign and tempo.
@@ -298,6 +303,9 @@
 %ifndef EV_SPACE
 %define EV_SPACE 0
 %endif
+%ifndef EV_KLINES
+%define EV_KLINES 1
+%endif
 %ifndef EV_SPACENPM
 %define EV_SPACENPM 40              ; space only with at least this much non-pawn material on the board (N 3, B 3, R 5, Q 9, both sides)
 %endif
@@ -374,6 +382,8 @@
 %define EV_IMBAL 0
 %undef EV_SPACE
 %define EV_SPACE 0
+%undef EV_KLINES
+%define EV_KLINES 0
 %undef EV_INIT
 %define EV_INIT 0
 %undef EV_GRAIN
@@ -389,7 +399,7 @@
 %if EV_SCALE2 && EV_SCALE == 0
 %error "EV_SCALE2 needs EV_SCALE=1"
 %endif
-%assign EV_PASSB EV_THRMIN | EV_THRHANG | EV_THRPAWN | EV_THRRESTR | EV_THRQUEEN | EV_KDANGER | EV_PASSED2 | EV_SPACE     ; a second-pass term (ev_sideb) is on
+%assign EV_PASSB EV_THRMIN | EV_THRHANG | EV_THRPAWN | EV_THRRESTR | EV_THRQUEEN | EV_KDANGER | EV_PASSED2 | EV_SPACE | EV_KLINES     ; a second-pass term (ev_sideb) is on
 %assign EV_PINCALC EV_PINS | EV_KDANGER                                                                         ; pinned pieces are needed
 %if EV_PASSB
 %undef EV_ATTMAPS
@@ -486,7 +496,10 @@
 %define EV_MOBBP    360         ; 14  bishop mobility with EV_PINS
 %define EV_MOBRP    374         ; 15  rook mobility with EV_PINS
 %define EV_MOBQP    389         ; 28  queen mobility with EV_PINS
-%define EV_N        417
+%define EV_KLOPEN   417         ; open files at their king (EV_KLINES)
+%define EV_KLSTORM  418         ; our storming pawns
+%define EV_KLHEAVY  419         ; our rooks / queens on files without their shelter pawn
+%define EV_N        420
 %if EV_PINS                     ; mobility tables in use
 %define EV_MOBN_U EV_MOBNP
 %define EV_MOBB_U EV_MOBBP
@@ -1092,6 +1105,10 @@ evp:                            ; terms of the full evaluation, layout: EV_* abo
     SC  138,  278
     SC   88,  221
     SC  162,  187
+; kl_open, kl_storm, kl_heavy (EV_KLINES)
+    SC   14,    0
+    SC    5,    0
+    SC    8,    0
 evp_end:
 %if EVAL_FULL
 align 8
@@ -2023,7 +2040,7 @@ SHARED kpk_bb, mateg
     sub rax, rdx
 %endmacro
 ; ---- EV_CFG: evaluation switches of this build (console command "evalcfg"; tuner/model.py FLAG_BITS has the same bits)
-%assign EV_CFG EVAL_FULL | (EV_TUNEMODE << 1) | (EV_ENDG << 2) | (EV_SCALE << 3) | (EV_LAZY << 4) | (EV_THRMIN << 5) | (EV_THRHANG << 6) | (EV_THRPAWN << 7) | (EV_THRRESTR << 8) | (EV_THRQUEEN << 9) | (EV_PINS << 10) | (EV_KDANGER << 11) | (EV_PASSED2 << 12) | (EV_PAWNS2 << 13) | (EV_SHELTER << 14) | (EV_PBISH << 15) | (EV_PMINOR << 16) | (EV_PROOK << 17) | (EV_PQUEEN << 18) | (EV_IMBAL << 19) | (EV_SPACE << 20) | (EV_INIT << 21) | (EV_GRAIN << 22) | (EV_SCALE6 << 23) | (EV_SCALE2 << 24) | (EV_ENDG2 << 25)
+%assign EV_CFG EVAL_FULL | (EV_TUNEMODE << 1) | (EV_ENDG << 2) | (EV_SCALE << 3) | (EV_LAZY << 4) | (EV_THRMIN << 5) | (EV_THRHANG << 6) | (EV_THRPAWN << 7) | (EV_THRRESTR << 8) | (EV_THRQUEEN << 9) | (EV_PINS << 10) | (EV_KDANGER << 11) | (EV_PASSED2 << 12) | (EV_PAWNS2 << 13) | (EV_SHELTER << 14) | (EV_PBISH << 15) | (EV_PMINOR << 16) | (EV_PROOK << 17) | (EV_PQUEEN << 18) | (EV_IMBAL << 19) | (EV_SPACE << 20) | (EV_INIT << 21) | (EV_GRAIN << 22) | (EV_SCALE6 << 23) | (EV_SCALE2 << 24) | (EV_ENDG2 << 25) | (EV_KLINES << 26)
 
 %if EVAL_FULL
 ; ---- helpers of the full evaluation
@@ -4337,6 +4354,67 @@ ev_sideb%1:
     shr r14d, 10
     TERM EV_SPACE_T, r14
 .spd:
+%endif
+%if EV_KLINES
+    ; ---- lines against their king (attacker's view)
+    mov eax, [rbx+EV_TKSQ]
+    mov ecx, eax
+    shr ecx, 3                      ; ecx = rank of their king
+    and eax, 7                      ; eax = its file, clamped to 1..6
+    mov edx, 1
+    cmp eax, edx
+    cmovb eax, edx
+    mov edx, 6
+    cmp eax, edx
+    cmova eax, edx
+    mov ebp, ecx                    ; ebp = their king's rank
+    shl ecx, 3
+    mov r8d, 1
+    shl r8, cl
+    dec r8                          ; r8 = squares below their king
+    mov r9, [rbx+EV_P]
+    and r9, r8                      ; r9 = our pawns below their king
+    and r8, [rbx+EV_TP]             ; r8 = their pawns below their king
+    mov r10, [rbx+EV_RB]
+    or r10, [rbx+EV_QB]             ; r10 = our rooks and queens
+    lea ecx, [rax-1]
+    mov rdi, 0x0101010101010101
+    shl rdi, cl                     ; rdi = first of the three files
+    xor r11d, r11d                  ; kl_open
+    xor r12d, r12d                  ; kl_storm
+    xor r13d, r13d                  ; kl_heavy
+    mov r14d, 3
+.kl:test r8, rdi
+    jnz .kl2                        ; their pawn below the king on this file
+    mov rax, r10
+    and rax, rdi
+    POPC rax, rax, rsi
+    add r13d, eax
+    test r9, rdi
+    jnz .kl2
+    inc r11d                        ; no pawn of either side below their king
+.kl2:mov rax, r9
+    and rax, rdi
+    jz .kl3
+    bsr rax, rax                    ; our pawn nearest to their king
+    mov edx, eax
+    shr edx, 3
+    neg edx
+    add edx, ebp
+    cmp edx, 3
+    ja .kl3                         ; more than 3 ranks below their king
+    mov rdx, [rbx+EV_TP]
+    lea ecx, [rax+8]
+    shr rdx, cl
+    test edx, 1
+    jnz .kl3                        ; blocked by their pawn
+    inc r12d
+.kl3:shl rdi, 1
+    dec r14d
+    jnz .kl
+    TERM EV_KLOPEN, r11
+    TERM EV_KLSTORM, r12
+    TERM EV_KLHEAVY, r13
 %endif
 %if EV_PASSED2
     ; ---- passed pawns, second pass

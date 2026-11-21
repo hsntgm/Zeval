@@ -49,12 +49,12 @@ TERMS = [("mob_n", 9), ("mob_b", 14), ("mob_r", 15), ("mob_q", 28), ("passed", 6
          ("bishop_pawns", 1), ("long_diag", 1), ("bishop_outpost", 1), ("reach_outpost", 1), ("minor_behind_pawn", 1), ("king_protector_n", 1),
          ("king_protector_b", 1), ("rook_closed", 1), ("trapped_rook", 1), ("rook_7th", 1), ("rooks_connected", 1), ("rook_behind_passer", 1),
          ("weak_queen", 1), ("imb_ours", 21), ("imb_theirs", 21), ("space", 1),
-         ("mob_n_pins", 9), ("mob_b_pins", 14), ("mob_r_pins", 15), ("mob_q_pins", 28)]
+         ("mob_n_pins", 9), ("mob_b_pins", 14), ("mob_r_pins", 15), ("mob_q_pins", 28), ("kl_open", 1), ("kl_storm", 1), ("kl_heavy", 1)]
 TERM_OFS = {}
 _o = 0
 for _n, _c in TERMS:
     TERM_OFS[_n] = _o; _o += _c
-EV_N = _o                       # 129
+EV_N = _o
 NF = EVP0 + EV_N                # number of tapered parameters (each has an mg and an eg value)
 NPAR = 2 * NF + 1               # flat vector: [mg(NF) | eg(NF) | tempo]
 TEMPO_IDX = 2 * NF
@@ -81,13 +81,14 @@ TERM_GROUPS = {"mob": ["mob_n", "mob_b", "mob_r", "mob_q"],
                            "king_protector_b", "rook_closed", "trapped_rook", "rook_7th", "rooks_connected", "rook_behind_passer", "weak_queen"],
                "imbalance": ["imb_ours", "imb_theirs"],
                "space": ["space"],
+               "klines": ["kl_open", "kl_storm", "kl_heavy"],
                "full": [n for n, _ in TERMS]}
 
 
 # ------------------------------------------------------------------------------------------------ evaluation switches
 FLAG_BITS = ["EVAL_FULL", "EV_TUNEMODE", "EV_ENDG", "EV_SCALE", "EV_LAZY", "EV_THRMIN", "EV_THRHANG", "EV_THRPAWN", "EV_THRRESTR", "EV_THRQUEEN",
              "EV_PINS", "EV_KDANGER", "EV_PASSED2", "EV_PAWNS2", "EV_SHELTER", "EV_PBISH", "EV_PMINOR", "EV_PROOK", "EV_PQUEEN", "EV_IMBAL",
-             "EV_SPACE", "EV_INIT", "EV_GRAIN", "EV_SCALE6", "EV_SCALE2", "EV_ENDG2"]     # bit i of EV_CFG = FLAG_BITS[i]
+             "EV_SPACE", "EV_INIT", "EV_GRAIN", "EV_SCALE6", "EV_SCALE2", "EV_ENDG2", "EV_KLINES"]     # bit i of EV_CFG = FLAG_BITS[i]
 CFG = {}
 
 
@@ -155,7 +156,28 @@ KD = {n: asm_define(n, d) for n, d in (("KD_WEAK", 2), ("KD_QCHK", 6), ("KD_RCHK
 
 def passb_on():
     return any(CFG.get(n) for n in ("EV_THRMIN", "EV_THRHANG", "EV_THRPAWN", "EV_THRRESTR", "EV_THRQUEEN", "EV_KDANGER", "EV_PASSED2",
-                                    "EV_SPACE"))
+                                    "EV_SPACE", "EV_KLINES"))
+
+
+def klines_terms(P, E, RQ, tk):
+    """EV_KLINES (src/eval.asm, second pass): (open files, storming pawns, heavy pieces) against their king on tk; our frame (we move north)"""
+    tr = tk >> 3
+    cf = min(max(tk & 7, 1), 6)
+    below = (1 << (tr * 8)) - 1
+    pb, eb = P & below, E & below
+    op = st = hv = 0
+    for f in (cf - 1, cf, cf + 1):
+        fm = FILE_A << f
+        if not eb & fm:
+            hv += popcount(RQ & fm)
+            if not pb & fm:
+                op += 1
+        b = pb & fm
+        if b:
+            q = b.bit_length() - 1
+            if tr - (q >> 3) <= 3 and not (E >> (q + 8)) & 1:
+                st += 1
+    return op, st, hv
 
 
 def cfg_mask():
@@ -650,6 +672,9 @@ def side_terms_b(us, them, uk, tk, us_all, occ, am, tm, acc, sign):
                 d -= KD["KD_KNDEF"]
             d = min(63, max(0, d))
         add(T["kdanger"] + d)
+    if CFG.get("EV_KLINES"):
+        op, st, hv = klines_terms(P, E, R | Q, tk)
+        add(T["kl_open"], op); add(T["kl_storm"], st); add(T["kl_heavy"], hv)
     if CFG.get("EV_SPACE") and npm_total(us, them) >= EV_SPACENPM:
         safe = SPACE_MASK & ~(tm["P"] | P) & M64
         behind = P | (P >> 8)

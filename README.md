@@ -73,7 +73,7 @@ A classical evaluation, tapered between middlegame and endgame:
 - **Pawn structure:** doubled, isolated, supported and phalanx pawns.
 - **Passed pawns:** rank, king distances, file, free and defended path.
 - **Pieces:** rooks on open and semi-open files, knight outposts.
-- **King safety:** king shield and king danger (attackers, weak ring squares, safe checks, pins).
+- **King safety:** king shield, king danger (attackers, weak ring squares, safe checks, pins) and open lines against the king (open files, storming pawns, rooks and queens on the files without a shelter pawn).
 - **Threats:** pawn threats, hanging pieces, restricted squares, threats against the queen.
 - **Endgame scale factor:** drawish material, opposite-coloured bishops, wrong bishop, typical drawn single-pawn endings, rook endings, few pawns.
 - **Special endgame knowledge:** mating patterns against a bare king (including KBNK), a KPK bitbase built into the binary, KQ-KR, KR-KB and KR-KN.
@@ -248,7 +248,7 @@ Orta oyun ile oyun sonu arasında kademeli geçiş yapan (tapered) klasik bir de
 - **Piyon yapısı:** çift, izole, desteklenen ve yan yana (phalanx) piyonlar.
 - **Geçer piyonlar:** yatay sıra, şah mesafeleri, dikey, serbest ve korunan yol.
 - **Taşlar:** açık ve yarı açık dikeylerde kaleler, at karakolları (outpost).
-- **Şah güvenliği:** şah kalkanı ve şah tehlikesi (saldıran taşlar, zayıf çevre kareleri, güvenli şah çekmeler, açmazlar).
+- **Şah güvenliği:** şah kalkanı, şah tehlikesi (saldıran taşlar, zayıf çevre kareleri, güvenli şah çekmeler, açmazlar) ve şaha karşı açık hatlar (açık hatlar, fırtına piyonları, siper piyonu olmayan hatlardaki kale ve vezirler).
 - **Tehditler:** piyon tehditleri, korumasız taşlar, kısıtlanan kareler, vezire yönelik tehditler.
 - **Oyun sonu ölçek faktörü:** beraberliğe yakın materyal, zıt renkli filler, yanlış fil, tipik berabere tek piyonlu oyun sonları, kale oyun sonları, az piyon.
 - **Özel oyun sonu bilgisi:** yalnız şaha karşı mat kalıpları (KBNK dahil), binary'ye gömülü bir KPK bitbase'i, KQ-KR, KR-KB ve KR-KN.
