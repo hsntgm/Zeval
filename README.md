@@ -46,7 +46,7 @@ Principal Variation Search with iterative deepening and aspiration windows.
 - **Transposition table:** lock-free (key XOR data), two-entry buckets, aging, mate-score aware, also used in quiescence. The static evaluation is cached in the table entry. On Linux the table is backed by transparent huge pages.
 - **Pruning and reductions:** null-move pruning, razoring, reverse futility pruning, futility pruning (on the LMR depth), late-move pruning, SEE pruning of captures and quiet moves, internal iterative reduction, late move reductions with history, cut-node and improving adjustments.
 - **Extensions:** check extension and singular extension of the TT move (with multi-cut).
-- **Move ordering:** TT move, captures by MVV-LVA split into good and bad by static exchange evaluation (bad captures after the quiet moves), killer moves, history with malus, continuation history (one and two plies back).
+- **Move ordering:** TT move, captures by MVV-LVA plus capture history, split into good and bad by static exchange evaluation with a threshold that follows the capture history (bad captures after the quiet moves), killer moves, history with malus, continuation history (one and two plies back).
 - **Quiescence:** captures and promotions, check evasions, SEE and delta pruning.
 - **Pre-make pruning:** legality and "gives check" of a quiet move are decided from the bitboards before making it, so pruned moves are never made and unmade.
 
@@ -221,7 +221,7 @@ Iterative deepening ve aspiration window'larla Principal Variation Search.
 - **Transposition table:** kilitsiz (anahtar XOR veri), iki girişli kovalar, yaşlandırma (aging), mat skorlarını doğru saklar, quiescence'ta da kullanılır. Statik değerlendirme tablo girişinde saklanır. Linux'ta tablo transparent huge page'lerle desteklenir.
 - **Budama ve azaltmalar:** null-move budaması, razoring, reverse futility budaması, futility budaması (LMR derinliğinde), late-move budaması, taş alan ve sessiz hamlelerde SEE budaması, internal iterative reduction, history destekli late move reductions, cut-node ve improving ayarlamaları.
 - **Uzatmalar:** şah uzatması ve TT hamlesinin singular uzatması (multi-cut ile).
-- **Hamle sıralama:** TT hamlesi; static exchange evaluation ile iyi ve kötü olarak ayrılan, MVV-LVA'ya göre sıralı taş almalar (kötü almalar sessiz hamlelerden sonra), killer hamleler, malus'lu history, continuation history (bir ve iki yarım hamle geriye).
+- **Hamle sıralama:** TT hamlesi; MVV-LVA ve capture history'ye göre sıralı, eşiği capture history'ye göre kayan static exchange evaluation ile iyi ve kötü olarak ayrılan taş almalar (kötü almalar sessiz hamlelerden sonra), killer hamleler, malus'lu history, continuation history (bir ve iki yarım hamle geriye).
 - **Quiescence:** taş almalar ve terfiler, şahtan kaçışlar, SEE ve delta budaması.
 - **Hamle yapmadan budama:** sessiz bir hamlenin yasallığı ve şah çekip çekmediği, hamle yapılmadan bitboard'lardan belirlenir; böylece budanan hamleler hiç yapılıp geri alınmaz.
 

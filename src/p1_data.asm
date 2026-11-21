@@ -98,6 +98,41 @@ section .bss  align=64
 %ifndef SEE_ORD
 %define SEE_ORD 1           ; capture ordering: good / bad split by SEE (asked only when the attacker is worth more than the victim)
 %endif
+%ifdef DEV8SEARCH
+%ifndef CAPHIST
+%define CAPHIST 0           ; the reference search (DEV8SEARCH) has no capture history
+%endif
+%endif
+%ifndef CAPHIST
+%define CAPHIST 2           ; capture history (see "Capture history" above); Zeval 1.0 = 0
+%endif
+%ifndef CAP_BA
+%define CAP_BA 120
+%endif
+%ifndef CAP_BMAX
+%define CAP_BMAX 1200
+%endif
+%ifndef CAP_LIM
+%define CAP_LIM 8000
+%endif
+%ifndef CAP_SH
+%define CAP_SH 13
+%endif
+%ifndef CAP_SEEB
+%define CAP_SEEB -10
+%endif
+%ifndef CAP_SEESH
+%define CAP_SEESH 6
+%endif
+%ifndef CAP_LMR
+%define CAP_LMR 0              ; CAPHIST: 1 = a late capture (same conditions as LMR) with captab < CAP_LMRT is searched one ply shallower
+%endif
+%ifndef CAP_LMRT
+%define CAP_LMRT 0
+%endif
+%ifndef CAP_SEEPOS
+%define CAP_SEEPOS 1           ; CAPHIST 2: 0 = only bad history moves the SEE threshold
+%endif
 %ifndef SEE_BADLAST
 %define SEE_BADLAST 1       ; losing captures are searched after the quiet moves
 %endif
@@ -192,6 +227,15 @@ section .bss  align=64
 ; ----   CH_PRUNE 1: a late quiet non-killer move of a non-PV node at depth <= CH_PD (3) is dropped when row(ply - 1) + row(ply - 2) < -CH_PM (3000) * depth.
 ; ----   CH_BL 1: the continuation bonus is min(CH_BA (150) * depth, CH_BMAX (1500)) instead of the history bonus min(16 * depth^2, 1600).
 ; ----   Defaults: CONTHIST 1, CH_PRUNE 1, CH_BL 1, CH_LMR 0.
+; ---- Capture history (CAPHIST 1): every unit keeps captab[piece code][to][victim type] (16 x 128 x 8 int16, 0x88 squares, 32 KB).  A capture
+; ----   cutoff gives the capture bonus min(CAP_BA * depth, CAP_BMAX) to the capture; the captures searched before the cutoff move get the malus
+; ----   (also when a quiet move cuts).  Gravity h += b - h * |b| / 2^CAP_SH, bounds +-CAP_LIM.  The ordering adds captab to the MVV-LVA score of
+; ----   good and bad captures (the bands stay apart: good above the killers, bad below every quiet move).  En passant counts as a pawn capture;
+; ----   under-promotions are never scored or updated.  ucinewgame clears captab of every unit.
+; ----   CAPHIST 2 also moves the good / bad split of score_moves (SEE_ORD): a capture is good when SEE >= CAP_SEEB - (captab >> CAP_SEESH) (-10 and
+; ----   6: within +-125 cp; -10 makes BxN with the knight defended an even trade).  Good history keeps a capture that loses a little in front of the
+; ----   quiet moves, bad history sends an even or slightly winning capture behind them.  A capture whose attacker is worth no more than the victim
+; ----   skips SEE only when its history is not negative.  Default: CAPHIST 2 (Zeval 1.1; Zeval 1.0 = 0; -DDEV8SEARCH forces 0).
 ; ---- Null move:  NMP_CUT 1 only at cut nodes    NMP_TTG 1 skip when the TT proves score < beta (upper bound, depth >= depth - R)
 ; ----             NMP_RB / NMP_EDIV  R = NMP_RB + depth / 4 + min(599, eval - beta) / NMP_EDIV (defaults 3 / 200)
 ; ----             NMP_VER 1  at depth >= NMP_VERD (14): verification search with the null move disabled for NMP_VERPLY plies (zugzwang safety)
@@ -781,6 +825,10 @@ pvlen:      resd MAXPLY+4
 killers:    resd MAXPLY*2
 alignb 64
 histtab:    resw 2*128*128
+%if CAPHIST
+alignb 64
+captab:     resw 16*128*8           ; capture history [piece code * 1024 + to * 8 + victim type] (CAPHIST)
+%endif
 alignb 64
 pvtab:      resd (MAXPLY+2)*MAXPLY
 alignb 64

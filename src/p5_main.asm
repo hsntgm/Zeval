@@ -271,6 +271,11 @@ clear_tables:
     mov edi, killers
     mov ecx, MAXPLY*2
     rep stosd
+%if CAPHIST
+    mov edi, captab
+    mov ecx, (16*128*8*2)/8
+    rep stosq
+%endif
 %if EV_CORR
     mov edi, corrtab
     mov ecx, (2 << CORR_BITS) / 4
@@ -305,6 +310,13 @@ clear_tables:
     mov ecx, MAXPLY*2
     xor eax, eax
     rep stosd
+%if CAPHIST
+    mov rax, [unit_tab+rbx*8]
+    lea rdi, [rax + (captab - tlb_0)]
+    mov ecx, (16*128*8*2)/8
+    xor eax, eax
+    rep stosq
+%endif
 %if EV_CORR
     mov rax, [unit_tab+rbx*8]
     lea rdi, [rax + (corrtab - tlb_0)]
@@ -1550,7 +1562,7 @@ _start:
     mov al, ' '
     call ob_ch
     inc ebx
-    cmp ebx, 64
+    cmp ebx, 80
     jb .ol
     pop rbx
     mov al, 10
@@ -1741,7 +1753,7 @@ section .text
 %if UNIT == 0
 section .bss
 alignb 64
-ordc:       resq 64
+ordc:       resq 80
 section .text
 %endif
 %endif

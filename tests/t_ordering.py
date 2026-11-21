@@ -37,7 +37,7 @@ import argparse, json, os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _eng import resolve, expect, finish, start
 
-NC = 64
+NC = 80                 # counters printed by 'ordstat' (64 .. 72: captures, see ORDCAP in src/p4_search.asm; older references hold 64)
 DCL = ["1", "2", "3", "4", "5-7", "8+"]
 NTY = ["PV", "cut", "all"]
 ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -91,7 +91,9 @@ def pct(a, b): return a / b if b else 0.0
 
 def metrics(c):
     """named numbers derived from the counters (shares are 0..1)"""
+    c = list(c) + [0] * (NC - len(c))       # a reference saved before the capture counters existed: they read as 0
     cut = c[0]; qn = sum(c[13:20]); rep = [1, 2, 3, 4, 5, 7, 12, 20]
+    other = cut - c[9] - c[64] - c[67]      # cutoffs by a killer, another quiet move or an under-promotion
     m = {
         "search fail-high nodes": cut,
         "first move cuts": pct(c[1], cut),
@@ -113,6 +115,14 @@ def metrics(c):
         "qsearch in check: share": pct(c[29], c[24]),
         "qsearch in check: first move": pct(c[62], c[29]),
         "qsearch no check: first move": pct(c[25] - c[62], c[24] - c[29]),
+        "cut by a good capture": pct(c[64], cut),
+        "... by the first good capture": pct(c[65], c[64]),
+        "... good captures before it (mean)": pct(c[66], c[64]),
+        "depth>=5: by the first good capture": pct(c[72], c[71]),
+        "cut by a bad capture": pct(c[67], cut),
+        "... its position (mean)": pct(c[68], c[67]),
+        "quiet cut after failed good captures": pct(c[69], other),
+        "... failed good captures (mean)": pct(c[70], other),
     }
     for t, ty in enumerate(NTY):
         m["%s share of fail-highs" % ty] = pct(c[56 + t], cut)
@@ -140,6 +150,8 @@ def check(c, tag):
     if any(c[59 + t] > c[56 + t] for t in range(3)): bad.append("node type counters inconsistent")
     if sum(c[25:29]) != c[24] or c[29] > c[24] or c[62] > c[29] or c[62] > c[25]: bad.append("qsearch counters inconsistent")
     if c[31] > c[30] or c[30] > c[0] or c[21] > c[20]: bad.append("depth >= 5 / TT move counters inconsistent")
+    if len(c) >= 73 and (c[64] + c[67] + c[9] > c[0] or c[65] > c[64] or c[72] > c[71] or c[71] > c[64] or c[64] + c[67] > c[10] + c[9]):
+        bad.append("capture counters inconsistent")
     if c[20] - c[21] > max(1, c[20] // 1000):
         bad.append("TT move not picked first at %d of %d nodes with a TT move (more than 0.1 %%: an ordering bug)" % (c[20] - c[21], c[20]))
     return ["FAIL (instrument%s): %s" % (tag, b) for b in bad]
@@ -156,6 +168,9 @@ GROUPS = [
     ("search()", ["search fail-high nodes", "first move cuts", "first two moves", "first three moves", "mean position (~)", "depth>=5 first move",
                   "cut by TT move", "cut by capture/promo", "cut by killer", "cut by other quiet", "TT move picked first"]),
     ("quiet cutoffs (rank among the quiet moves picked)", ["quiet cutoffs (killer + other)", "quiet rank 1", "quiet rank 1-3", "quiet rank 9+"]),
+    ("captures (good >= SEE 0 by score_moves, bad = sorted behind the quiet moves)", ["cut by a good capture", "... by the first good capture",
+                  "... good captures before it (mean)", "depth>=5: by the first good capture", "cut by a bad capture", "... its position (mean)",
+                  "quiet cut after failed good captures", "... failed good captures (mean)"]),
     ("qsearch()", ["qsearch fail-high nodes", "qsearch first move", "qsearch in check: share", "qsearch in check: first move", "qsearch no check: first move"]),
     ("node type (all = neither PV nor cut)", [x for ty in NTY for x in ("%s share of fail-highs" % ty, "%s first move" % ty)]),
 ] + [("depth %s" % d, ["d%s share of fail-highs" % d, "d%s first move" % d, "d%s with TT move" % d, "d%s first, TT move" % d, "d%s first, no TT move" % d])

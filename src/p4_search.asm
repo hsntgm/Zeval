@@ -18,6 +18,65 @@
 ; ----   ordc[44+b]   fail-highs at a node with a TT move       ordc[50+b]   of them on the first move
 ; ----   node types t = 0 PV, 1 cut, 2 all (neither):  ordc[56+t] fail-highs, ordc[59+t] of them on the first move
 ; ----   L_ORDQ (frame slot 132, ORDSTAT only) counts the quiet moves picked at the node.
+; ---- ORDCAP (ORDSTAT): the captures at a cutoff.  The scores of the moves picked so far are L_SCORES[0 .. L_IDX - 1] (the cutoff move last);
+; ----   good capture >= 0x1000000 (not the TT move 0x40000000), bad capture <= -200000.
+; ----   64 cutoffs by a good capture   65 ... by the first good capture picked   66 ... sum of the good captures tried before it
+; ----   67 cutoffs by a bad capture    68 ... sum of their positions
+; ----   69 other cutoffs (killer, quiet, under-promotion) after at least one good capture   70 ... sum of the good captures tried before them
+; ----   71 depth >= 5: cutoffs by a good capture   72 ... by the first good capture
+%macro ORDCAP 0
+%if UNIT == 0
+    push rax
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    mov ecx, [rbp+L_IDX]
+    mov esi, [rbp+rcx*4+L_SCORES-4]
+    xor edx, edx
+    xor eax, eax
+%%l:lea edi, [rcx-1]
+    cmp eax, edi
+    jge %%e
+    mov edi, [rbp+rax*4+L_SCORES]
+    cmp edi, 0x1000000
+    jl %%n
+    cmp edi, 0x40000000
+    jge %%n
+    inc edx
+%%n:inc eax
+    jmp %%l
+%%e:cmp esi, 0x40000000
+    je %%x
+    cmp esi, 0x1000000
+    jl %%b
+    inc qword [ordc+64*8]
+    add [ordc+66*8], rdx
+    xor edi, edi
+    test edx, edx
+    sete dil
+    add [ordc+65*8], rdi
+    cmp dword [rbp+L_DEPTH], 5
+    jl %%x
+    inc qword [ordc+71*8]
+    add [ordc+72*8], rdi
+    jmp %%x
+%%b:cmp esi, -200000
+    jg %%q
+    inc qword [ordc+67*8]
+    add [ordc+68*8], rcx
+    jmp %%x
+%%q:test edx, edx
+    jz %%x
+    inc qword [ordc+69*8]
+    add [ordc+70*8], rdx
+%%x:pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rax
+%endif
+%endmacro
 %macro ORDREC 0
 %if UNIT == 0
     push rax
@@ -595,6 +654,17 @@ ch_update:
 ; move ordering helpers
 ; ============================================================
 ; score_moves(rdi = moves, rsi = scores, edx = n, ecx = ttmove)
+%if CAPHIST
+; caph_add: esi += captab of the move [r8 + rbx * 4] (score_moves).  Clobbers eax ecx edx edi.
+caph_add:
+    mov edi, [r8+rbx*4]
+    call cap_index
+    test eax, eax
+    js .n
+    movsx eax, word [captab+rax*2]
+    add esi, eax
+.n: ret
+%endif
 score_moves:
     push rbx
     push rbp
@@ -685,7 +755,52 @@ score_moves:
     lea esi, [rdx*8]
     add esi, esi                ; victim*16
     sub esi, eax                ; MVV-LVA
-%if SEE_ORD
+%if SEE_ORD && CAPHIST >= 2
+    push r8                     ; CAPHIST 2: good / bad by SEE >= CAP_SEEB - (captab >> CAP_SEESH)
+    push r9
+    push r10
+    push r11
+    push rsi
+    mov r11d, eax               ; attacker value (r8 .. r11 are saved above)
+    mov r10d, edx               ; victim value
+    mov edi, [r8+rbx*4]
+    call cap_index
+    xor esi, esi
+    test eax, eax
+    js .ch0
+    movsx esi, word [captab+rax*2]
+.ch0:
+%if CAP_SEEPOS == 0
+    mov eax, esi                ; only bad history moves the threshold
+    sar eax, 31
+    and esi, eax
+%endif
+    cmp r11d, r10d
+    jg .chs
+    test esi, esi
+    jns .chg                    ; attacker worth no more than the victim and no bad history: good without SEE
+.chs:
+    sar esi, CAP_SEESH
+    neg esi
+    add esi, CAP_SEEB           ; good history lowers the threshold, bad history raises it
+    mov edi, [r8+rbx*4]
+    call see_ge
+    pop rsi
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    test eax, eax
+    jz .bad
+    jmp .good
+.chg:
+    pop rsi
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    jmp .good
+%elif SEE_ORD
     cmp eax, edx
     jle .good                   ; attacker worth no more than the victim: the capture cannot lose material
     push r8
@@ -709,10 +824,16 @@ score_moves:
     jg .bad
 %endif
 .good:
+%if CAPHIST
+    call caph_add
+%endif
     add esi, 0x1000000
     mov [r9+rbx*4], esi
     jmp .next
 .bad:
+%if CAPHIST
+    call caph_add
+%endif
 %if SEE_BADLAST
     sub esi, 0x40000            ; behind every quiet move (history stays within +-16000)
 %else
@@ -1061,6 +1182,76 @@ hist_update:
     mov edx, -16000
 .c2:mov [histtab+rax*2], dx
     ret
+%if CAPHIST
+; cap_index(edi = move) -> eax = index into captab, -1 when the move is no capture (quiet, push promotion, under-promotion).  The board is the
+; position before the move.  Clobbers eax ecx edx edi only.
+cap_index:
+    mov ecx, edi
+    shr ecx, 7
+    and ecx, 127                    ; to
+    movzx eax, byte [board+rcx]
+    and eax, 7                      ; victim type
+    mov edx, edi
+    and edx, 127                    ; from
+    movzx edx, byte [board+rdx]     ; mover code
+    test eax, eax
+    jnz .vic
+    mov eax, edx                    ; empty target: en passant only (a pawn changing its file)
+    and eax, 7
+    cmp eax, 1
+    jne .no
+    mov eax, edi
+    xor eax, ecx
+    and eax, 7
+    jz .no
+    mov eax, 1
+.vic:
+    push rdx
+    and edx, 7
+    cmp edx, 1                      ; a pawn reaching the last rank promotes: only the queen promotion has an entry
+    jne .vq
+    mov edx, ecx
+    and edx, 0x70
+    jz .vp
+    cmp edx, 0x70
+    jne .vq
+.vp:mov edx, edi
+    shr edx, 14
+    cmp edx, 3
+    je .vq
+    pop rdx
+.no:mov eax, -1
+    ret
+.vq:pop rdx
+    shl edx, 10
+    shl ecx, 3
+    add eax, ecx
+    add eax, edx
+    ret
+; cap_update(edi = move, esi = bonus): the gravity update of hist_update with its own shift and bounds.  Keeps esi; clobbers eax ecx edx edi r8.
+cap_update:
+    call cap_index
+    test eax, eax
+    js .r
+    movsx edx, word [captab+rax*2]
+    mov r8d, esi
+    test r8d, r8d
+    jns .p
+    neg r8d
+.p: imul r8d, edx
+    sar r8d, CAP_SH
+    mov ecx, esi
+    sub ecx, r8d
+    add edx, ecx
+    cmp edx, CAP_LIM
+    jle .c1
+    mov edx, CAP_LIM
+.c1:cmp edx, -CAP_LIM
+    jge .c2
+    mov edx, -CAP_LIM
+.c2:mov [captab+rax*2], dx
+.r: ret
+%endif
 
 ; ============================================================
 ; quiescence search: qsearch(edi = alpha, esi = beta) -> eax
@@ -1447,12 +1638,18 @@ qsearch:
 %define L_MOVES  160
 %define L_SCORES 1184
 %define L_QUIETS 2208
+%assign SF_TOP 2480                ; (%assign, not %define: each offset is fixed where it is defined)
 %ifdef PCVERIFY
-%define L_PCW    2480              ; PCVERIFY only: ProbCut would have cut this node
-%define SFRAME   2496
-%else
-%define SFRAME   2480
+%assign L_PCW    SF_TOP            ; PCVERIFY only: ProbCut would have cut this node
+%assign SF_TOP SF_TOP+16
 %endif
+%if CAPHIST
+%assign L_NCAP   SF_TOP            ; CAPHIST: captures searched so far at this node (at most 16)
+%assign L_CAPH   SF_TOP+4          ; CAPHIST: captab of the current move, read before it is made (CAP_LMR; no entry: 0x7FFFFFFF)
+%assign L_CAPS   SF_TOP+16         ; CAPHIST: ... the moves
+%assign SF_TOP SF_TOP+80
+%endif
+%assign SFRAME   SF_TOP
 ; scratch in the thread-local array sevals (indices MAXPLY .. MAXPLY+15, never used as a ply index)
 %define S_BASE   sevals+MAXPLY*4
 %define S_NMPMIN S_BASE+0           ; dd  NMP verification: no null move below this ply while a verification search runs (0 = off)
@@ -1534,6 +1731,9 @@ search:
     mov dword [rbp+L_BESTMV], 0
     mov dword [rbp+L_MCNT], 0
     mov dword [rbp+L_NQ], 0
+%if CAPHIST
+    mov dword [rbp+L_NCAP], 0
+%endif
     mov dword [rbp+L_ROOT], 0
     cmp dword [ply], 0
     jne .nr
@@ -2258,6 +2458,18 @@ search:
     inc dword [rbp+L_ORDQ]
 %endif
 .qdone:
+%if CAPHIST && CAP_LMR
+    mov dword [rbp+L_CAPH], 0x7FFFFFFF
+    cmp dword [rbp+L_ISQ], 0
+    jne .chq
+    mov edi, [rbp+L_MV]             ; the capture history of this capture, while the board still shows the victim
+    call cap_index
+    test eax, eax
+    js .chq
+    movsx eax, word [captab+rax*2]
+    mov [rbp+L_CAPH], eax
+.chq:
+%endif
     mov dword [rbp+L_SEEB], 0
 %if SEE_PC || SEE_PQ
     cmp dword [rbp+L_PV], 0
@@ -2662,7 +2874,11 @@ search:
 .lmrq:
 %else
     cmp dword [rbp+L_ISQ], 0
+%if CAPHIST && CAP_LMR
+    je .caplmr
+%else
     je .nored
+%endif
 %endif
     cmp dword [rbp+L_INCHK], 0
     jne .nored
@@ -2764,6 +2980,17 @@ search:
     test r13d, r13d
     jns .p2
     xor r13d, r13d
+%if CAPHIST && CAP_LMR
+    jmp .p2
+.caplmr:                            ; CAP_LMR: a late capture with a capture history below CAP_LMRT is searched one ply shallower
+    cmp dword [rbp+L_INCHK], 0
+    jne .nored
+    cmp dword [rbp+L_GIVES], 0
+    jne .nored
+    cmp dword [rbp+L_CAPH], CAP_LMRT
+    jge .nored
+    mov r13d, 1
+%endif
 .p2:mov eax, [rbp+L_NEWD]
     dec eax
     cmp r13d, eax
@@ -2887,7 +3114,11 @@ search:
     jge .cutoff
 .nobest:
     cmp dword [rbp+L_ISQ], 0
+%if CAPHIST
+    je .ncap
+%else
     je .mloop
+%endif
     mov ecx, [rbp+L_NQ]
     cmp ecx, 64
     jge .mloop
@@ -2896,6 +3127,17 @@ search:
     inc ecx
     mov [rbp+L_NQ], ecx
     jmp .mloop
+%if CAPHIST
+.ncap:
+    mov ecx, [rbp+L_NCAP]           ; a capture (or a promotion: cap_update skips what has no entry) searched without a cutoff
+    cmp ecx, 16
+    jge .mloop
+    mov eax, [rbp+L_MV]
+    mov [rbp+rcx*4+L_CAPS], eax
+    inc ecx
+    mov [rbp+L_NCAP], ecx
+    jmp .mloop
+%endif
 .illegal:
     call undomove
     jmp .mloop
@@ -2926,9 +3168,14 @@ search:
 .cutoff:
 %ifdef ORDSTAT
     ORDREC
+    ORDCAP
 %endif
     cmp dword [rbp+L_ISQ], 0
+%if CAPHIST
+    je .capcut
+%else
     je .store
+%endif
     mov eax, [ply]
     lea rdx, [killers+rax*8]
     mov ecx, [rbp+L_MV]
@@ -2965,7 +3212,11 @@ search:
     xor ebx, ebx
 .mal:
     cmp ebx, [rbp+L_NQ]
+%if CAPHIST
+    jge .capmal
+%else
     jge .store
+%endif
     mov edi, [rbp+rbx*4+L_QUIETS]
     mov esi, [rbp+L_BONUS]
     neg esi
@@ -2978,6 +3229,31 @@ search:
 %endif
     inc ebx
     jmp .mal
+%if CAPHIST
+.capcut:                            ; a capture / promotion cut: its bonus, then the malus of the captures searched before it
+    mov edi, [rbp+L_MV]
+    imul esi, [rbp+L_DEPTH], CAP_BA
+    cmp esi, CAP_BMAX
+    jle .cc1
+    mov esi, CAP_BMAX
+.cc1:call cap_update
+.capmal:                            ; (also after a quiet cutoff)
+    imul eax, [rbp+L_DEPTH], CAP_BA
+    cmp eax, CAP_BMAX
+    jle .cc2
+    mov eax, CAP_BMAX
+.cc2:neg eax
+    mov [rbp+L_TMP], eax
+    xor ebx, ebx
+.cml:
+    cmp ebx, [rbp+L_NCAP]
+    jge .store
+    mov edi, [rbp+rbx*4+L_CAPS]
+    mov esi, [rbp+L_TMP]
+    call cap_update
+    inc ebx
+    jmp .cml
+%endif
 .mdone:
     cmp dword [rbp+L_MCNT], 0
     jne .store

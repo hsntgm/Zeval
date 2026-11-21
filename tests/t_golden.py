@@ -4,7 +4,8 @@
 A fixed-depth, single-threaded search is deterministic, so every correct build prints the same
 score / node count / best move per iteration (since 2.3 "pv" is the full line and bestmove may carry "ponder":
 only the first pv move and the bestmove move are compared; tests/t_pv.py checks the rest of the line).  Reference files (60 positions, depth 8):
-  golden_depth8.json                    current default build, recorded from the Linux ELF (2,484,151 nodes)
+  golden_depth8.json                    current default build, recorded from the Linux ELF (2,445,720 nodes)
+  golden_depth8_z10.json                -DCAPHIST=0: the search of Zeval 1.0 (2,484,151 nodes)
   golden_depth8_dev39.json              build with -DSE_M=2 -DSE_TTD=3: the search of 2.5-dev39 (2,713,101 nodes)
   golden_depth8_dev38.json              build with -DSING=0: the default of 2.5-dev35 .. dev38 (1,945,787 nodes)
   golden_depth8_dev34.json              build with -DCONTHIST=0 -DSING=0: the default of 2.5-dev34 (1,931,516 nodes)
