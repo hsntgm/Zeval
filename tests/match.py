@@ -14,11 +14,16 @@ usage: match.py A B [--games 400] [--workers 2] [--seed S] [--pool N]
 
 Why pairs: every opening is played twice with the colours swapped, so the two games of a pair are not independent.  The
 observation unit is the pair (score for A: 0, 0.5, 1, 1.5, 2); tests/sprt.py computes the LLR and the Elo error from the five
-pair counts.  --sprt tri uses the per-game (trinomial) numbers instead, which overstates the confidence (kept for comparison).
+pair counts.  The printed "Elo +-" is a 95 % interval (1.96 standard errors).  --sprt tri uses the per-game (trinomial) numbers
+instead, which overstates the confidence (kept for comparison).  The Elo printed when an SPRT stops early is biased towards the
+accepted hypothesis; for a size estimate of an accepted change, run a fixed number of games with a new seed.
 Recommended practice: a NEW seed for every new match (default: a fresh one is drawn and printed), a test that
 passes at 40 ms should also be run at ~200 ms, arithmetic changes with Threads=1, SMP changes with several threads.
-Games end by the normal rules, plus adjudication: 6 consecutive moves with |score| >= 700 (win), 8 with |score| <= 10 after move 80
-(draw), 400-move cap; engine failure, illegal move, no answer or time forfeit = loss, recorded as adj="fail".
+Games end by the rules (a 3-fold repetition or the 50-move rule once it has happened on the board, not when the next move could
+claim it), plus adjudication: 6 consecutive plies with |score| >= 700 (win), 8 consecutive plies with |score| <= 10 once 80 plies
+have been played (draw), 400-ply cap; plies are counted from the start position (the random opening included; from the first move
+with --epd).  A move played without a score line (a forced move answered at once) keeps the previous ply's score.  Engine failure,
+illegal move, no answer or time forfeit = loss, recorded as adj="fail".
 Exit code: 0 whenever the run completed (the verdict is the printed line, not the exit code); 2 = an engine could not be started or answered uci / isready before the match.
 A write to a crashed engine (BrokenPipe) is an engine failure (a lost game, adj="fail"), not a crash of the whole match.  Both engines are started once
 before the match as a pre-flight check (clear message for a wrong path).  An opening pool that cannot be filled (e.g. --plies 1 with --pool 50) stops with a
@@ -72,12 +77,13 @@ class Eng:
         self.send("ucinewgame"); self.send("isready"); self.wait("readyok", 60)
 
     def think(self, moves, go, timeout, fen=None):
-        """go = the text after 'go'; timeout in seconds; fen = start position (None = the initial position); returns (bestmove, score cp, elapsed ms)"""
+        """go = the text after 'go'; timeout in seconds; fen = start position (None = the initial position); returns (bestmove, score cp or None, elapsed ms)
+        score = None when the engine sent no score line (Zeval answers a position with one legal move at once)"""
         start = f"position fen {fen}" if fen else "position startpos"
         self.send(start + (" moves " + " ".join(moves) if moves else ""))
         t0 = time.time()
         self.send("go " + go)
-        score = 0; end = t0 + timeout
+        score = None; end = t0 + timeout
         while time.time() < end:
             l = self.readline()
             if not l: continue
@@ -99,6 +105,18 @@ def parse_tc(s):
     return int(float(base) * 1000), int(float(inc or 0) * 1000)
 
 
+def rules_result(b):
+    """the result by the rules (white's view: 1 / 0.5 / 0), or None while the game goes on.  python-chess's claim_draw=True is not
+    used: it also ends the game when the side to move merely COULD reach a 3-fold repetition or the 50-move limit with its next move,
+    which a side that is better would not do.  Here a repetition / the 50-move rule counts once it has happened on the board."""
+    o = b.outcome(claim_draw=False)                      # checkmate, stalemate, insufficient material, 5-fold, 75-move rule
+    if o is not None:
+        return 0.5 if o.winner is None else (1.0 if o.winner == chess.WHITE else 0.0)
+    if b.is_repetition(3) or b.halfmove_clock >= 100:
+        return 0.5
+    return None
+
+
 def play(white, black, opening, mode, rec=None, adjudicate=True):
     """returns (result from white's view: 1 / 0.5 / 0, adj).
     mode = ("movetime", ms) | ("nodes", n) | ("tc", base_ms, inc_ms)
@@ -112,7 +130,7 @@ def play(white, black, opening, mode, rec=None, adjudicate=True):
         except RuntimeError:
             if rec is not None: rec.update({"opening": opening if fen else list(opening), "plies": [], "adj": "fail"})
             return (0.0 if who == 0 else 1.0), "fail"
-    win_run = 0; draw_run = 0; last_sign = 0
+    win_run = 0; draw_run = 0; last_sign = 0; wsc = 0
     clock = [mode[1], mode[1]] if mode[0] == "tc" else None      # [white, black] ms
     if rec is not None: rec.update({"opening": opening if fen else list(opening), "plies": [], "adj": None})
 
@@ -120,9 +138,9 @@ def play(white, black, opening, mode, rec=None, adjudicate=True):
         if rec is not None: rec["adj"] = why
         return r, why
     while True:
-        o = b.outcome(claim_draw=True)
-        if o is not None:
-            return end(0.5 if o.winner is None else (1.0 if o.winner == chess.WHITE else 0.0))
+        r = rules_result(b)
+        if r is not None:
+            return end(r)
         side = 0 if b.turn == chess.WHITE else 1
         e = white if side == 0 else black
         if mode[0] == "movetime": go, tmo = f"movetime {mode[1]}", mode[1] / 1000 + 5
@@ -143,7 +161,8 @@ def play(white, black, opening, mode, rec=None, adjudicate=True):
             if m not in b.legal_moves: raise ValueError
         except ValueError:
             return end(0.0 if side == 0 else 1.0, "fail")        # illegal move = loss
-        wsc = sc if side == 0 else -sc
+        if sc is not None:                                           # no score line: keep the previous ply's score (white's view)
+            wsc = sc if side == 0 else -sc
         if rec is not None:
             rec["plies"].append([b.fen(), wsc, mv, int(b.is_capture(m)), int(b.gives_check(m))])
         b.push(m); moves.append(mv)
@@ -153,7 +172,7 @@ def play(white, black, opening, mode, rec=None, adjudicate=True):
         if win_run >= 6 and adjudicate: return end(1.0 if sign > 0 else 0.0, "win")
         draw_run = draw_run + 1 if (abs(wsc) <= 10 and len(moves) >= 80) else 0
         if draw_run >= 8 and adjudicate: return end(0.5, "draw")
-        if len(moves) > 400: return end(0.5, "len")                      # (counted from the start position)
+        if len(moves) > 400: return end(0.5, "len")                      # 400 plies, counted from the start position
 
 
 def worker(args):

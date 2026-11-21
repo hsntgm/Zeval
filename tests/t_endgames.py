@@ -90,7 +90,7 @@ def play_one(args):
     try:
         e.send("ucinewgame")
         moves = []
-        while not b.is_game_over(claim_draw=True) and len(moves) < MAXPLIES:
+        while match.rules_result(b) is None and len(moves) < MAXPLIES:
             e.send(f"position fen {fen}" + (" moves " + " ".join(moves) if moves else ""))
             e.send(f"go movetime {movetime}")
             line = e.wait("bestmove")
@@ -103,7 +103,8 @@ def play_one(args):
         e.quit()
     won = b.is_checkmate() and b.turn != strong
     ok = won if WANT_WIN[cls] else not won
-    return cls, ok, (len(moves) + 1) // 2, b.result(claim_draw=True)
+    r = match.rules_result(b)
+    return cls, ok, (len(moves) + 1) // 2, {1.0: "1-0", 0.5: "1/2-1/2", 0.0: "0-1"}.get(r, "*")
 
 
 def main():

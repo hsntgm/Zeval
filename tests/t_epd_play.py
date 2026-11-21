@@ -46,7 +46,7 @@ def play(args):
     try:
         e.send("ucinewgame")
         moves = []
-        while not b.is_game_over(claim_draw=True) and len(moves) < maxplies:
+        while match.rules_result(b) is None and len(moves) < maxplies:
             e.send(f"position fen {fen}" + (" moves " + " ".join(moves) if moves else ""))
             e.send(f"go {budget}")
             mv = e.wait("bestmove", 60).split()[1]
