@@ -98,6 +98,11 @@ def main():
     ci = P.get("loss", {}).get("delta_val_ci")
     if ci and ci[2] >= 0:
         print(f"apply_params: note: the validation gain over the asm tables is not statistically significant (95 % interval [{ci[1]:+.6f}, {ci[2]:+.6f}]); only an SPRT can say whether this is better")
+    m = P.get("mean_abs_eval")
+    if m and m.get("asm", 0) > 0 and abs(m["tuned"] / m["asm"] - 1.0) > 0.02:
+        print(f"apply_params: note: mean |eval| of the tuned tables is {m['tuned'] / m['asm']:.3f} x that of the asm tables.  The search margins (RFP, futility, razor, NMP, delta; SPSA T0..T19, T58) "
+              f"are tuned for the old scale: such a shift alone costs Elo (measured once: about -30 Elo for +-10 %) and hides the gain of the tuning in an SPRT.  "
+              f"Run tune.py with --norm-scale asm (or re-tune the margins with SPSA) before measuring.")
     src = open(a.src).read()
     note = (f"; (tuned by tuner/tune.py: {time.strftime('%Y-%m-%d')}, {P['positions_train'] + P['positions_val']} positions, K {P['K']:.3f}, prior {P['prior']:g}, free '{P['free']}';"
             f" the tables below are pst = tuned(pst + material) - material, BP {tab['bp_mg']}/{tab['bp_eg']}, tempo {tab['tempo']})")

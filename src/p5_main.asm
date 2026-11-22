@@ -1008,9 +1008,21 @@ do_setoption:
     jae .ret
     mov ebx, edx
     mov rsi, r13
+    xor r8d, r8d
+    test rsi, rsi
+    jz .ret
+    cmp byte [rsi], '-'             ; a tuning value may be negative (e.g. T35 IN_INFIL -5)
+    jne .tpos
+    inc rsi
+    inc r8d
+.tpos:
     call opt_num
     cmp eax, -1
     je .ret
+    test r8d, r8d
+    jz .tst
+    neg eax
+.tst:
     mov [tunetab+rbx*4], eax
 %endif
     jmp .ret                    ; unknown options (and Threads in builds without SMP: Windows, the test builds): accepted, nothing to do

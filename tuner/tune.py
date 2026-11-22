@@ -58,7 +58,11 @@ def load(path, dtype):
 def split(d, val_frac, seed):
     """validation set = whole groups (games), chosen by a seeded hash"""
     g = d.grp.astype(np.uint64)
-    h = (g * np.uint64(0x9E3779B97F4A7C15) + np.uint64(seed * 7919 + 13)) >> np.uint64(40)
+    # the seed must enter BEFORE the multiplicative hash: added to the product it only changes bits below 2^13, which the >> 40 discards
+    # (every seed gave the same validation games).  Wrap-around of the uint64 arithmetic is intended.
+    x = (g + np.uint64((seed * 0xD1B54A32D192ED03 + 13) & 0xFFFFFFFFFFFFFFFF)) * np.uint64(0x9E3779B97F4A7C15)
+    x ^= x >> np.uint64(29); x *= np.uint64(0xBF58476D1CE4E5B9)
+    h = x >> np.uint64(40)
     isval = (h % np.uint64(10000)).astype(np.float64) < val_frac * 10000
     if isval.sum() == 0 or isval.all():
         raise SystemExit("validation split is empty - use more data or another --val")
@@ -250,6 +254,16 @@ def round_flat(v, t):
     return model.flat(w2, T["tempo"]), T
 
 
+def scale_to(d, v, target, tol=0.0):
+    """pure scale change of the WHOLE eval (every parameter, the frozen ones too, and the tempo) so that mean|eval| over the positions of d equals `target`.
+    scores() is linear in v, so the factor is exact (no search).  A factor within `tol` of 1 is not applied: the rounding noise of a tiny rescale (every
+    table entry moves by up to 0.5) costs more than the shift.  Returns (v', factor, applied)."""
+    cur = float(np.mean(np.abs(scores(d, v))))
+    r = target / cur if cur > 0 else 1.0
+    if abs(r - 1.0) < tol: return v, r, False
+    return v * r, r, True
+
+
 def tables_json(T):
     return {k: (v.tolist() if isinstance(v, np.ndarray) else v) for k, v in T.items()}
 
@@ -268,6 +282,11 @@ def main():
     ap.add_argument("--bootstrap", type=int, default=0, help="runs with <= 50 free parameters: B game-resampled refits -> mean / sd of every tuned value (is the change significant?)")
     ap.add_argument("--lam", type=float, default=0.0, help="target = (1-lam)*result + lam*sigmoid(Kcp*search_cp/400)  (needs game data with scores)")
     ap.add_argument("--from-zero", action="store_true", help="start the FREE parameters from zero (needs --k); parameters that are not free keep their asm value; the default prior is then 0 (a prior towards zero would only shrink the eval)")
+    ap.add_argument("--norm-scale", default="", metavar="asm|CP",
+                    help="after tuning, rescale the whole eval by one factor so that mean|eval| over the training positions equals that of the START tables ('asm') or a number "
+                         "of cp.  The search margins (RFP / futility / razor / NMP / delta, SPSA T0..T19, T58) are tuned for one eval scale; a tuned eval that is larger or smaller "
+                         "costs Elo by itself (measured: about -30 Elo for +-10 %), which hides the gain of the tuning in an SPRT")
+    ap.add_argument("--norm-tol", type=float, default=0.005, help="--norm-scale is skipped when the factor is within this distance of 1 (default 0.005 = 0.5 %%)")
     a = ap.parse_args()
     t_start = time.time()
     log = lambda s: print(s, flush=True)
@@ -342,12 +361,35 @@ def main():
     vl, P, v, ep = min(results, key=lambda r: r[0])
     log(f"\nchosen: prior {P:g}")
 
+    mae_asm_train = float(np.mean(np.abs(scores(train, v_asm))))
+    cur_abs = float(np.mean(np.abs(scores(train, v))))
+    to_asm = mae_asm_train / cur_abs if cur_abs > 0 else 1.0
+    log(f"eval scale: mean|eval| over the training positions: asm tables {mae_asm_train:.1f} cp, tuned (float) {cur_abs:.1f} cp.  To keep the asm scale every value would be x{to_asm:.4f}"
+        f"  (= --norm-scale asm;  a dev switch that scales the eval by N/1024 would be N = {int(round(1024 * to_asm))})")
+    tgt_abs = None
+    if a.norm_scale:
+        try: tgt_abs = mae_asm_train if a.norm_scale == "asm" else float(a.norm_scale)
+        except ValueError: tgt_abs = -1.0
+        if not tgt_abs > 0: raise SystemExit("--norm-scale: 'asm' or a positive number (mean|eval| in cp over the training positions)")
+    v_raw = v; scale_applied = False; scale_ratio = 1.0
+    if tgt_abs is not None:
+        v, scale_ratio, scale_applied = scale_to(train, v, tgt_abs, a.norm_tol)
+        if scale_applied:
+            log(f"--norm-scale: the whole eval (all {NPAR} parameters, also the frozen ones) x {scale_ratio:.4f}: mean|eval| {cur_abs:.1f} -> {tgt_abs:.1f} cp (a pure scale change, rounded below)")
+        else:
+            log(f"--norm-scale: factor {scale_ratio:.4f} is within {a.norm_tol:g} of 1: not applied (the parameters stay exactly as tuned)")
+
     vr, T = round_flat(v, t)
     log("\n                              train       validation")
     log(f"start (asm as given)       {base_tr:.6f}    {base_va:.6f}")
     log(f"tuned, float               {mse(train, scores(train, v), K, tgt_tr):.6f}    {mse(val, scores(val, v), K, tgt_va):.6f}")
     log(f"tuned, rounded (ENGINE)    {mse(train, scores(train, vr), K, tgt_tr):.6f}    {mse(val, scores(val, vr), K, tgt_va):.6f}")
+    if scale_applied:
+        vr_raw, _T = round_flat(v_raw, t)
+        log(f"tuned, rounded, NOT normalised {mse(train, scores(train, vr_raw), K, tgt_tr):.6f}    {mse(val, scores(val, vr_raw), K, tgt_va):.6f}   (the price of --norm-scale = the difference to the line above)")
     s_all = scores(train, vr)
+    if tgt_abs is not None:
+        log(f"mean|eval| of the rounded ENGINE tables {np.mean(np.abs(s_all)):.1f} cp, target {tgt_abs:.1f} cp ({(np.mean(np.abs(s_all)) / tgt_abs - 1) * 100:+.2f} %)")
     K2 = fit_k(train, s_all, tgt_tr)
     log(f"scale check: K before {K:.4f}, K refitted on the tuned eval {K2:.4f} ({(K2 / K - 1) * 100:+.1f} %);  mean|eval| {np.mean(np.abs(s_tr)):.1f} -> {np.mean(np.abs(s_all)):.1f} cp")
     log("   (judge a scale shift by mean|eval|, not by K: K also rises when the tuned eval simply predicts better.  A tuned eval that grew a lot shifts the margins of RFP / futility / razor / NMP: re-tune them with SPSA afterwards)")
@@ -388,6 +430,8 @@ def main():
     out = {"format": "asmchess-tuner-1", "K": K, "prior": P, "optimizer": a.optimizer, "epochs_best": ep, "positions_train": train.n, "positions_val": val.n,
            "free": a.free, "lam": a.lam, "from_zero": bool(a.from_zero), "data": os.path.basename(a.data),
            "mean_abs_eval": {"asm": mae_asm, "tuned": mae_new},
+           "scale": {"norm_scale": a.norm_scale, "applied": bool(scale_applied), "factor_applied": scale_ratio, "mean_abs_eval_tuned_float": cur_abs,
+                     "factor_to_asm_scale": to_asm, "oscale_1024_to_asm": int(round(1024 * to_asm))},
            "loss": {"start_train": base_tr, "start_val": base_va, "tuned_val": vl, "asm_train": asm_tr, "asm_val": asm_va,
                     "rounded_train": mse(train, scores(train, vr), K, tgt_tr), "rounded_val": mse(val, scores(val, vr), K, tgt_va),
                     "delta_val_ci": [dm, dlo, dhi]},
@@ -398,7 +442,7 @@ def main():
     log(f"-> {a.out}   [{time.time() - t_start:.0f}s]")
     if len(results) > 1:
         for vl_, P_, v_, _ in results:
-            vr_, T_ = round_flat(v_, t)
+            vr_, T_ = round_flat(scale_to(train, v_, tgt_abs, a.norm_tol)[0] if tgt_abs is not None else v_, t)
             o2 = dict(out, prior=P_, tables=tables_json(T_))
             json.dump(o2, open(os.path.splitext(a.out)[0] + f"_prior{P_:g}.json", "w"))
 

@@ -306,6 +306,9 @@
 %ifndef EV_KLINES
 %define EV_KLINES 1
 %endif
+%ifndef EV_OSCALE
+%define EV_OSCALE 1024              ; test builds only: the score of the normal evaluation * EV_OSCALE / 1024 (special endgames unscaled)
+%endif
 %ifndef EV_SPACENPM
 %define EV_SPACENPM 40              ; space only with at least this much non-pawn material on the board (N 3, B 3, R 5, Q 9, both sides)
 %endif
@@ -4730,6 +4733,14 @@ ev_eval%1:
 %endif
     EVTOTAL
 .fin:
+%if EV_OSCALE != 1024
+    imul eax, eax, EV_OSCALE        ; test builds: White's score * EV_OSCALE / 1024, truncated towards zero (colour-symmetric)
+    mov ecx, eax
+    sar ecx, 31
+    and ecx, 1023
+    add eax, ecx
+    sar eax, 10
+%endif
     cmp dword [stm], 0
     je .w
     neg eax

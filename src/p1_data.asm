@@ -482,6 +482,15 @@ section .bss  align=64
 %ifndef LMR_SHALM
 %define LMR_SHALM 8
 %endif
+%ifndef PR_MAXD
+%define PR_MAXD 6           ; late quiet moves of non-PV nodes: LMP / continuation-history / futility pruning up to this depth
+%endif
+%ifndef RFP_MAXD
+%define RFP_MAXD 6          ; reverse futility pruning up to this depth
+%endif
+%ifndef LMP_SF
+%define LMP_SF 0            ; 1 = late move count (3 + d^2), halved when not improving (0 = (d^2 + 5) +- a quarter)
+%endif
 %ifndef NMP_CUT
 %define NMP_CUT 1
 %endif

@@ -2066,7 +2066,7 @@ search:
 %endif
     ; reverse futility pruning
     mov ecx, [rbp+L_DEPTH]
-    cmp ecx, 6
+    cmp ecx, RFP_MAXD
     jg .rfpx
 %if RFP_EXT
     cmp dword [rbp+L_TTMV], 0       ; only when there is no TT move or it is a capture
@@ -2761,8 +2761,16 @@ search:
     cmp dword [rbp+L_BEST], -MATEB
     jle .nopr
     mov ecx, [rbp+L_DEPTH]
-    cmp ecx, 6
+    cmp ecx, PR_MAXD
     jg .nopr
+%if LMP_SF
+    mov eax, ecx                    ; late move count: (3 + d^2), halved when the eval is not improving
+    imul eax, ecx
+    add eax, 3
+    cmp dword [rbp+L_IMPR], 0
+    jne .lmpd
+    shr eax, 1
+%else
     mov eax, ecx
     imul eax, ecx
     add eax, 5
@@ -2774,6 +2782,7 @@ search:
     jmp .lmpd
 .lmpn:
     sub eax, edx
+%endif
 .lmpd:
     cmp [rbp+L_MCNT], eax
     jg .prune
