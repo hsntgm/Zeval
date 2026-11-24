@@ -75,6 +75,7 @@ def main():
         if c / a.iters ** 0.101 < 0.5:
             raise SystemExit(f"--param {n}: c = {c:g} falls to {c / a.iters ** 0.101:.2f} < 0.5 at the last iteration: both sides would often get the "
                              f"same integer value.  Use c >= {0.5 * a.iters ** 0.101:.2f} for --iters {a.iters}")
+    os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)   # the folder of --out (e.g. results\) need not exist yet
     mode = ("tc",) + match.parse_tc(a.tc) if a.tc else ("movetime", a.movetime)
     N = a.iters
     A = 0.1 * N
