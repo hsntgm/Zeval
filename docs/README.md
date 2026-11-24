@@ -403,7 +403,9 @@ sh tests/build1.sh /tmp/z_hstat -DHSTAT                       # the same for the
 printf 'uci\nposition startpos\ngo depth 12\nisready\nhstat\nquit\n' | /tmp/z_hstat
 ```
 
-Each counter command prints one line after the search (`hstat`, `ordstat`, `sestat`, `pcstat`, `evalprof`).
+Each counter command prints one line after the search (`hstat`, `ordstat`, `sestat`, `pcstat`, `evalprof`). The counters
+add up over all searches of one process and are not reset by `ucinewgame`: start a fresh process for each measurement, or
+subtract two readings.
 
 **By the part of the engine that changed:**
 
@@ -423,7 +425,7 @@ Each counter command prints one line after the search (`hstat`, `ordstat`, `sest
 | Best-move vote | `VOTETEST` (`tests/t_smp_vote.py`) | the engine's choice against the written rules |
 | Shared continuation history | `CHSHTEST` (`tests/t_chshared.py`) | which tables the helpers fill |
 | Time allocation formula | `TMCDBG` (`tests/t_tmcurve.py`) | soft and hard limit against the model |
-| Evaluation terms, attack maps, pawn cache | `EVALPROF` (`tests/t_phash.py` for the cache) | rdtsc cycles per eval call A/B (the cost of a term), pawn cache hit rate |
+| Evaluation terms, attack maps, pawn cache | `EVALPROF` (`tests/t_phash.py` for the cache) | rdtsc cycles per eval call A/B (the cost of a term), pawn cache hit rate, eval calls saved by `EVCACHE`. The cycle counts are noisy on a shared or virtual machine: repeat the run, and measure speed with `tests/bench_ab.py`. |
 
 Evaluation values are checked without a special build: `tuner/check_eval.py` (engine against the Python model) and
 `tests/t_eval.py` (colour symmetry, incremental against full evaluation). Run both after any change in `src/eval.asm`.
