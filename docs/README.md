@@ -390,6 +390,56 @@ difference.
 | `NOSMP` | Single-thread engine on either OS | manual |
 | `WIN` | Windows target (set by the build scripts) | `build/` |
 
+
+### 3.1 Using them for bug hunting
+
+The counter builds count in the main thread only. With Threads 1 and a fixed depth the search is deterministic, so two
+builds can be compared number by number, without games and without error bars. Compare the node counts first: a change
+of the tree moves every share, even where no decision changed. The meaning of every counter is listed at its definition
+in `src/p4_search.asm` (`ORDSTAT`, `HSTAT`, `SESTAT`, `PCVERIFY`).
+
+```sh
+sh tests/build1.sh /tmp/z_hstat -DHSTAT                       # the same for the other counter builds
+printf 'uci\nposition startpos\ngo depth 12\nisready\nhstat\nquit\n' | /tmp/z_hstat
+```
+
+Each counter command prints one line after the search (`hstat`, `ordstat`, `sestat`, `pcstat`, `evalprof`).
+
+**By the part of the engine that changed:**
+
+| Change | Run | What to look at |
+|---|---|---|
+| Move ordering: history, killers, continuation or capture history, SEE ordering | `ORDSTAT` (`tests/t_ordering.py OLD --ab NEW`, or `--ref tests/ordering_ref_*.json`) | first-move cutoff rate per depth class and node type, TT move picked first, kind and rank of the cutoff move |
+| History bonus, malus or gravity; thresholds that read the history (`CH_PRUNE`, `LMR_HIST`) | `HSTAT` | how the history values are spread around the fixed thresholds: how many moves `CH_PRUNE` drops and how many LMR steps fire. A history change that shifts these distributions also changes pruning and LMR. |
+| Singular extension: margin, depth limits, multi-cut, negative extension | `SESTAT` + `SEVERIFY` (`tests/t_singular.py`) | singular / multi-cut / neither shares and the nodes of the exclusion searches per depth; any `SEVERIFY` exit is a bug |
+| ProbCut margin or depth | `PCVERIFY` with `-DPROBCUT=1` | would-be cuts that the full search refutes (tactical risk) and nodes saved |
+| Late-move pruning, futility, SEE pruning of quiet moves, bitboard move generation | `PPVERIFY` + `PICKVERIFY` + `INCHKVERIFY` (`tests/t_ppverify.py`, also `--selftest`) | any exit code: the pre-make test, the SIMD pick or the in-check hint disagrees with the slow path |
+| `score_moves` or the move pick | `PICKVERIFY` | exit code 6 |
+| Passing of the in-check state (null move, evasions, quiescence) | `INCHKVERIFY` | exit codes 4 / 5 |
+| cutNode logic (`LMR_CUT`, `NMP_CUT`, `TTCUT_COND`, IIR, ProbCut) | `CUTVERIFY` | exit code 7 |
+| `see_ge`, piece values, x-rays | `SEETEST` (`tests/t_see.py`) | mismatches against the reference exchange search |
+| Transposition table layout, store or probe | `TTPLAIN` / `TTRACE` (`tests/t_ttrace.py`), `TTFUZZ` (`tests/t_ttfuzz.py`) | torn entries, or an illegal TT move played or sent as ponder |
+| A new per-thread variable, the thread units or Lazy SMP | `UNITTEST`, `NOTT` (`tests/t_units.py`, `t_units_conc.py`), `SMPTEST` (`tests/t_smp_equiv.py`), `tests/t_smp_audit.py` | a unit that searches differently from unit 0, a helper that writes shared state |
+| Best-move vote | `VOTETEST` (`tests/t_smp_vote.py`) | the engine's choice against the written rules |
+| Shared continuation history | `CHSHTEST` (`tests/t_chshared.py`) | which tables the helpers fill |
+| Time allocation formula | `TMCDBG` (`tests/t_tmcurve.py`) | soft and hard limit against the model |
+| Evaluation terms, attack maps, pawn cache | `EVALPROF` (`tests/t_phash.py` for the cache) | rdtsc cycles per eval call A/B (the cost of a term), pawn cache hit rate |
+
+Evaluation values are checked without a special build: `tuner/check_eval.py` (engine against the Python model) and
+`tests/t_eval.py` (colour symmetry, incremental against full evaluation). Run both after any change in `src/eval.asm`.
+
+**By symptom:**
+
+| Symptom | First check |
+|---|---|
+| Fixed-depth node counts changed although the change should not touch the tree | `tests/t_golden.py`, then the verification build of the touched code |
+| Crash, illegal move or illegal ponder move | `PPVERIFY` + `PICKVERIFY` + `INCHKVERIFY`, `TTFUZZ`, `tests/t_memsafety.py` |
+| Elo loss after a history or ordering change | `ORDSTAT` A/B, then `HSTAT` |
+| Tactics loss after an extension or pruning change | `SESTAT` (extensions), `PCVERIFY` (ProbCut), then `./tactics.sh ab` |
+| Lower nps after an evaluation change | `EVALPROF` cycles per call, `tests/bench_ab.py` |
+| Results differ with Threads > 1 or between thread units | `tests/t_units_conc.py`, `SMPTEST`, `tests/t_smp_audit.py` |
+| Time losses or moves that use too much of the clock | `TMCDBG`, `tests/t_tmclock.py` |
+| Eval differs between engine and tuner, or by colour | `tuner/check_eval.py`, `tests/t_eval.py` |
 ---
 
 ## 4. Open work
