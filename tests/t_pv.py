@@ -4,11 +4,13 @@
   ENGINE=./zeval python3 tests/t_pv.py            (Windows: set ENGINE=zeval.exe)
 Checks (exit code 0 = all passed):
   * every 'info' line of a fixed-depth search has  depth seldepth score nodes nps hashfull tbhits time pv  in that order,
-    values in range, and the WHOLE pv is a legal line from the root position (played move by move with python-chess)
+    values in range, and the WHOLE pv is a legal line from the root position (played move by move with python-chess);
+    nps = nodes * 1000 / time (time at least 1 ms), and nodes and time never go down within a search
   * every search, completed or interrupted (stop / nodes / movetime): bestmove == first move of the last pv, 'ponder' equals pv[1] when the
     pv has one (PV_FINAL: a search that ends inside an iteration with a new best root move prints one more info line)
   * stop in the middle of an iteration, go nodes, go movetime: bestmove and ponder still legal
-  * mate scores: the pv has the length the mate score implies (mate N -> 2N-1 plies, or longer, never shorter)
+  * mate positions (mate in 1 and in 2): the engine reports exactly that mate, the pv has the length it implies (mate N -> 2N-1 plies, or
+    longer, never shorter) and ends in mate
   * promotions / castling / en passant inside a pv are printed in UCI notation and are legal
   * long pv (KQ vs K at depth 30) stays inside the table, no corruption of the following search
   * go infinite for 4.5 s: 'currmove' lines appear only after 3 s, are legal root moves, currmovenumber counts 1,2,3..
@@ -59,13 +61,16 @@ INFO = re.compile(r"^info depth (\d+) seldepth (\d+) score (cp|mate) (-?\d+) nod
 def verify_search(out, board, label, expect_bestmove=True, strict=True):
     """returns (last_info_match, bestmove_line)"""
     infos = [l for l in out if l.startswith("info") and " pv " in l]
-    last = None; lastd = 0
+    last = None; lastd = 0; lastn = lastt = 0
     for l in infos:
         m = INFO.match(l)
         check(m is not None, f"{label}: info line format: {l[:160]}")
         if not m: continue
         d, sd, kind, sc, nodes, nps, hf, tb, tm, pv = m.groups()
         d, sd, hf = int(d), int(sd), int(hf)
+        nodes, nps, tm_ = int(nodes), int(nps), int(tm)
+        check(nps == nodes * 1000 // max(tm_, 1), f"{label}: nps is not nodes * 1000 / time: {l[:100]}")
+        check(nodes >= lastn and tm_ >= lastt, f"{label}: nodes or time went down ({lastn}, {lastt}): {l[:100]}"); lastn, lastt = nodes, tm_
         check(d > lastd, f"{label}: depth not increasing: {l[:100]}"); lastd = d
         check(sd >= 1, f"{label}: seldepth < 1: {l[:100]}")
         check(0 <= hf <= 1000, f"{label}: hashfull out of range: {l[:100]}")
@@ -144,18 +149,21 @@ print("2. stop / nodes / movetime: bestmove, pv, ponder legal; bestmove = first 
 
 # ---- 3. mate scores and pv length
 mates = [("6k1/5ppp/8/8/8/8/5PPP/3R2K1 w - - 0 1", 1), ("r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4", 1),
-         ("7k/8/6K1/8/8/8/8/R7 w - - 0 1", 2), ("1k6/8/1K6/8/8/8/8/Q7 w - - 0 1", 2)]
-for fen, _ in mates:
+         ("7k/8/6K1/8/8/8/8/R7 w - - 0 1", 1), ("6k1/5ppp/8/8/8/8/2r2PPP/R5K1 w - - 0 1", 2),      # Ra8+ Rc8 Rxc8#
+         ("5r1k/6pp/7N/8/8/8/Q7/6K1 w - - 0 1", 2)]                                                   # Qg8+ Rxg8 Nf7#
+for fen, want in mates:
     b = chess.Board(fen)
     out, ok = e.go("fen " + fen, "go depth 8")
     last, bm = verify_search(out, b, "mate")
-    if last and last.group(3) == "mate" and int(last.group(4)) > 0:
-        n = int(last.group(4)); l = len(last.group(10).split())
+    got = (last.group(3), int(last.group(4))) if last else None
+    check(got == ("mate", want), f"mate in {want}: the last info line reports {got}, expected ('mate', {want}): {fen}")
+    if got == ("mate", want):
+        n = want; l = len(last.group(10).split())
         check(l >= 2 * n - 1, f"mate in {n}: pv has only {l} plies ({last.group(10)})")
         bb = b.copy()
         for mv in last.group(10).split(): bb.push(chess.Move.from_uci(mv))
         check(bb.is_checkmate() or l > 2 * n - 1, f"mate in {n}: pv does not end in mate: {last.group(10)}")
-print("3. mate pv lengths")
+print("3. mate distances and pv lengths")
 
 # ---- 4. long pv inside the table
 fen = "8/8/8/4k3/8/8/8/4KQ2 w - - 0 1"; b = chess.Board(fen)

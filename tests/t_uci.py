@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """UCI conformance for tournament managers and GUIs.
 
-Short, targeted checks (78); the whole run takes about 6 s.  Needs python-chess (pip install chess).
+Short, targeted checks (78); the whole run takes about 7 s.  Needs python-chess (pip install chess).
   ENGINE=./zeval python3 tests/t_uci.py          (Windows: set ENGINE=zeval.exe)
 Exit code 0 = no FAIL.  WARN lines are informational (optional protocol features).
 """
@@ -282,19 +282,27 @@ def main():
     def nodes_depth(d, setup=("ucinewgame", "position startpos")):
         e.send(*setup); lines, ok, _ = e.go("go depth %d" % d)
         i = infos(lines); return i[-1]["nodes"] if ok and i else None
-    n1 = nodes_depth(7); n2 = nodes_depth(7)
-    chk("ucinewgame makes searches reproducible (TT cleared)", n1 is not None and n1 == n2, (n1, n2))
+    # depth 11 from the start position: the node count depends on the table size (Hash 1 MB and 32 MB differ; at depth 7 every size gives
+    # the same count, so a check there could not fail).  The table size was changed above (Hash 16 during a search), so "default" is
+    # measured in a fresh process.
     e.send("setoption name Hash value 32", "setoption name Threads value 1")
-    n3 = nodes_depth(7); chk("explicit Hash 32 == default behaviour", n3 == n1, (n1, n3))
-    n_1 = n1
-    for hv in (1, 64, 256, 1024):
+    n1 = nodes_depth(11); n2 = nodes_depth(11)
+    chk("ucinewgame makes searches reproducible (TT cleared)", n1 is not None and n1 == n2, (n1, n2))
+    f = Eng(); f.uci(); f.send("ucinewgame", "position startpos"); lines, ok, _ = f.go("go depth 11"); i = infos(lines); f.close()
+    n_def = i[-1]["nodes"] if ok and i else None
+    chk("explicit Hash 32 == default behaviour (a fresh process)", n_def is not None and n1 == n_def, (n_def, n1))
+    e.send("setoption name Hash value 1"); n_h1 = nodes_depth(11)
+    chk("Hash 1 and Hash 32 give different trees at depth 11 (the Hash checks here can fail)", n_h1 is not None and n_h1 != n1, (n1, n_h1))
+    for hv in (64, 256, 1024):
         e.send("setoption name Hash value %d" % hv)
         n = nodes_depth(7); chk("setoption Hash %d -> search works" % hv, n is not None and e.ready(), n)
-    e.send("setoption name hash value 32")
-    n4 = nodes_depth(7); chk("option names are case-insensitive (hash)", n4 == n1, (n1, n4))
-    e.send("position startpos"); e.go("go depth 6")
-    e.send("setoption name Clear Hash"); n5 = nodes_depth(7, ("position startpos",))
-    chk("Clear Hash clears the table", n5 is not None and e.ready(), n5)
+    e.send("setoption name Hash value 1", "setoption name hash value 32")
+    n4 = nodes_depth(11); chk("option names are case-insensitive (hash)", n4 == n1, (n1, n_h1, n4))
+    e.send("ucinewgame", "position startpos"); e.go("go depth 10")
+    n_warm = nodes_depth(11, ("position startpos",))
+    e.send("ucinewgame", "position startpos"); e.go("go depth 10")
+    e.send("setoption name Clear Hash"); n5 = nodes_depth(11, ("position startpos",))
+    chk("Clear Hash clears the table (same tree as after ucinewgame, not the tree of a filled table)", n5 == n1 and n5 != n_warm, (n1, n_warm, n5))
     for bad in ("setoption name Hash value 99999999999", "setoption name Hash value abc", "setoption name Hash value 0",
                 "setoption name Hash value -5", "setoption name Hash", "setoption name Nonexistent value 1",
                 "setoption", "setoption name", "setoption value 3", "setoption name Move Overhead value 99999999999"):

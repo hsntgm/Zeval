@@ -4,9 +4,11 @@
 Linux only (needs nasm, ld).  Builds two TEST binaries in a temp dir (release flavour, 4 units, -DCHSHTEST): CH_SHARED=1 and CH_SHARED=0.  The
 console command "chsum" of a CHSHTEST build prints, for every unit, the number of non-zero entries of that unit's own continuation table (chtab).
 
-  1. shared build, Threads = 4, timed searches on 8 positions (the first golden positions whose Threads = 1 search fills the table at all): the helpers' own tables stay empty (0 entries) after every search, the main
-     thread's table is not empty, and with 4 threads it holds more entries than after the same fixed-depth search with Threads = 1 (the helpers
-     write into it); "ucinewgame" empties it again
+  1. shared build, Threads = 4, on 8 positions (the first golden positions whose Threads = 1 search fills the table at all): the helpers' own
+     tables stay empty (0 entries) after every search, the main thread's table is not empty, and with 4 threads it holds clearly more entries
+     (over the 8 positions together, at least 5 % more) than after the same searches (go depth 9, then go movetime 150) with Threads = 1:
+     the helpers write into it.  (Per position the counts are noisy: the main thread searches less with helpers beside it.)  "ucinewgame"
+     empties it again
   2. Threads = 1: the shared and the non-shared build search the same tree (node counts of fixed-depth searches identical, 10 positions)
   3. self-test: in the non-shared build the helpers' own tables fill up (so check 1 would see a helper that writes its own table)
 
@@ -64,7 +66,7 @@ def main():
         e = Eng(sh1); bad = []; more = 0; det = []; used = 0
         for f in FENS:
             if used == 8: break
-            e.send("setoption name Threads value 1", "ucinewgame"); e.ready(); e.go(f, "go depth 9"); c1 = e.counts()
+            e.send("setoption name Threads value 1", "ucinewgame"); e.ready(); e.go(f, "go depth 9"); e.go(f, "go movetime 150"); c1 = e.counts()
             if c1[0] == 0: continue                     # no quiet cutoff at all (e.g. a mate in one): nothing to compare
             used += 1
             e.send("setoption name Threads value 4", "ucinewgame"); e.ready(); e.go(f, "go depth 9"); e.go(f, "go movetime 150"); c4 = e.counts()
@@ -72,7 +74,9 @@ def main():
             more += c4[0] > c1[0]; det.append((c1[0], c4[0]))
         e.send("ucinewgame"); e.ready(); c = e.counts(); e.close()
         check(not bad, "1. shared build: the helpers' own tables stay empty, the main table fills (per position: Threads=1 entries, Threads=4 entries) %s" % (det if not bad else bad[:2]))
-        check(more == 8, "1. with 4 threads the shared table holds more entries than with 1 (helpers write into it): %d of 8 positions" % more)
+        s1, s4 = sum(a for a, b in det), sum(b for a, b in det)
+        check(s4 > 1.05 * s1, "1. with 4 threads the shared table holds more entries than with 1 (helpers write into it): %d against %d over 8 positions (%+.0f %%; more on %d of 8)"
+              % (s4, s1, 100.0 * (s4 - s1) / max(s1, 1), more))
         check(c == [0] * NU, "1. ucinewgame empties the shared table: %s" % c)
         # 2. Threads = 1 identical
         a = Eng(sh1); b = Eng(sh0); na = []; nb = []

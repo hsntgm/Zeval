@@ -42,7 +42,7 @@ o = run("uci\nposition startpos moves " + mv + "\nd\nquit\n")
 check("1160-ply position line fully applied", "Fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 1160 581" in o)
 
 # 4. console mode: draw only on the third occurrence, 'go infinite' must not hang
-o = run("position startpos moves g1f3 g8f6 f3g1\nf6g8\nq\n"); check("2nd repetition is not a draw", "Draw by repetition" not in o)
+o = run("position startpos moves g1f3 g8f6 f3g1\nf6g8\nq\n"); check("2nd repetition is not a draw (the engine answers with a move)", "Draw by repetition" not in o and "Engine:" in o)
 o = run("position startpos moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1\nf6g8\nq\n"); check("3rd repetition is a draw", "Draw by repetition" in o)
 t = time.time(); o = run("time 200\ngo infinite\nq\n", timeout=10); check("console go infinite returns", "Engine:" in o and time.time() - t < 5)
 
