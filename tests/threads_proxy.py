@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """Test helper (Lazy SMP): runs the other test scripts with more than one search thread without changing them.
-usage:  ENGINE="python3 tests/threads_proxy.py 4 ./zeval" python3 tests/t_uci.py        (4 = value of the UCI option Threads)
-It starts the engine, passes stdin / stdout through line by line, and inserts "setoption name Threads value N" right after every "uci" line."""
+usage:  ENGINE="python3 tests/threads_proxy.py 4 ./zeval" python3 tests/t_robust.py     (4 = value of the UCI option Threads)
+It starts the engine, passes stdin / stdout through line by line, and inserts "setoption name Threads value N" right after every "uci" line.
+Suited to tests that check behaviour: t_robust, t_timecontrol and t_tactics pass with several threads.  Some checks assume one thread
+and fail with several by design: a search with several threads is not reproducible (the threads share the table and their order differs
+from run to run), so the four t_uci checks that compare node counts fail (go nodes, ucinewgame, Hash, option name case); and the last
+info line comes from the thread chosen as the best one, which can repeat a depth already printed, so t_pv's "depth increasing" check
+can fail."""
 import subprocess, sys, threading, os
 if len(sys.argv) < 3: sys.exit("usage: threads_proxy.py N ENGINE [engine args ...]   (see the docstring)")
 n, exe = sys.argv[1], sys.argv[2:]
