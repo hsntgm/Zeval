@@ -29,7 +29,7 @@ Recommended practice: a NEW seed for every new match (default: a fresh one is dr
 passes at 40 ms should also be run at ~200 ms, arithmetic changes with Threads=1, SMP changes with several threads.
 Games end by the rules (a 3-fold repetition or the 50-move rule once it has happened on the board, not when the next move could
 claim it), plus adjudication: 6 consecutive plies with |score| >= 700 (win), 8 consecutive plies with |score| <= 10 once 80 plies
-have been played (draw), 400-ply cap; plies are counted from the start position (the random opening included; from the first move
+have been played (draw; --no-draw-adj switches this one off), 400-ply cap; plies are counted from the start position (the random opening included; from the first move
 with --epd).  A move played without a score line (a forced move answered at once) keeps the previous ply's score.  Engine failure,
 illegal move, no answer or time forfeit = loss, recorded as adj="fail".
 Exit code: 0 whenever the run completed (the verdict is the printed line, not the exit code); 2 = an engine could not be started or answered uci / isready before the match.
@@ -128,6 +128,7 @@ def rules_result(b):
 def play(white, black, opening, mode, rec=None, adjudicate=True):
     """returns (result from white's view: 1 / 0.5 / 0, adj).
     mode = ("movetime", ms) | ("nodes", n) | ("tc", base_ms, inc_ms)
+    adjudicate: True = win and draw adjudication, "win" = win adjudication only, False = none
     rec (dict or None): filled with {"opening", "plies": [[fen, white-view cp, uci, is_capture, gives_check], ...], "adj"}
     adj = how the game ended: None (real end), "win"/"draw" (adjudicated by the runner), "len" (move cap), "fail" (engine failure / illegal move / forfeit on time)."""
     fen = opening if isinstance(opening, str) else None              # a start position (str) or opening moves from the initial position (list)
@@ -179,7 +180,7 @@ def play(white, black, opening, mode, rec=None, adjudicate=True):
         last_sign = sign
         if win_run >= 6 and adjudicate: return end(1.0 if sign > 0 else 0.0, "win")
         draw_run = draw_run + 1 if (abs(wsc) <= 10 and len(moves) >= 80) else 0
-        if draw_run >= 8 and adjudicate: return end(0.5, "draw")
+        if draw_run >= 8 and adjudicate is True: return end(0.5, "draw")
         if len(moves) > 400: return end(0.5, "len")                      # 400 plies, counted from the start position
 
 
@@ -300,6 +301,7 @@ if __name__ == "__main__":
     ap.add_argument("A"); ap.add_argument("B")
     ap.add_argument("--games", type=int, default=400, help="maximum number of games (2 per opening)")
     ap.add_argument("--no-adj", action="store_true", help="no win / draw adjudication (games end by the rules or the 400-move cap): labels for Texel tuning then do not come from the engine's own score")
+    ap.add_argument("--no-draw-adj", action="store_true", help="no draw adjudication (win adjudication kept): drawn labels then come from the rules only")
     ap.add_argument("--movetime", type=int, default=40)
     ap.add_argument("--nodes", type=int, default=0, help="fixed nodes per move (overrides --movetime)")
     ap.add_argument("--tc", default="", help="clock, e.g. 10+0.1 (seconds base + increment); overrides --movetime/--nodes")
@@ -342,14 +344,14 @@ if __name__ == "__main__":
     elif book: ops = book_starts(book, pairs, seed)
     else: ops = get_openings(pairs, a.pool, seed, a.B, a.plies, a.open_cp)
     src = f" from {a.epd}" if a.epd else (f" from book {os.path.basename(book)}" if book else " | random openings")
-    print(f"match: {a.A} vs {a.B} | {desc} | seed {seed} | {len(ops)} pairs" + src + (" | no adjudication" if a.no_adj else "") + f" | sprt {a.sprt} [{a.elo0:+g},{a.elo1:+g}] alpha {a.alpha} beta {a.beta}", flush=True)
+    print(f"match: {a.A} vs {a.B} | {desc} | seed {seed} | {len(ops)} pairs" + src + (" | no adjudication" if a.no_adj else (" | no draw adjudication" if a.no_draw_adj else "")) + f" | sprt {a.sprt} [{a.elo0:+g},{a.elo1:+g}] alpha {a.alpha} beta {a.beta}", flush=True)
 
     lo = math.log(a.beta / (1 - a.alpha)); hi = math.log((1 - a.beta) / a.alpha)
     W = D = L = F = 0; P = [0] * 5
     N = 0; elo = err = llr = 0.0
     with Pool(a.workers) as pool:
         # ordered imap: the SPRT must look at pairs in the order they were started (imap_unordered would favour short games)
-        it = pool.imap(worker, [(a.A, a.B, a.optA, a.optB, o, mode, bool(a.save_games), not a.no_adj) for o in ops])
+        it = pool.imap(worker, [(a.A, a.B, a.optA, a.optB, o, mode, bool(a.save_games), False if a.no_adj else ("win" if a.no_draw_adj else True)) for o in ops])
         gf = open(a.save_games, "a") if a.save_games else None
         for n, (r1, r2, w1, w2, ra, rb) in enumerate(it, 1):
             if gf:
