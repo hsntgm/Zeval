@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""SPSA tuning of the numeric options T<n> of a -DTUNE build (search margins T0 .. T19, evaluation constants T20 .. T39, endgame scale T40 .. T57, qsearch delta margin T58, continuation history T59 .. T61).
+"""SPSA tuning of the numeric options T<n> of a -DTUNE build (search margins T0 .. T19, evaluation constants T20 .. T39, endgame scale T40 .. T57, qsearch delta margin T58, continuation history T59 .. T61,
+further search constants T62 .. T76: see tune_def in src/p5_main.asm).
 
 Every iteration perturbs all parameters at once by +-c_k (random signs), plays --pairs game pairs (colours swapped, same opening) between
 theta + c_k*delta and theta - c_k*delta with the same engine binary, and moves theta along delta by r_k * c_k * result, where result is the SUM over
@@ -21,7 +22,7 @@ The result (rounded theta, history) is written to --out every 10 iterations (ato
 of iteration k is seeded by --seed and k, so a resumed run is the same run).  Verify it with an SPRT (tests/match.py --optA "T0=..;T4=..").
 A few thousand games only move the parameters coarsely; real runs use tens of thousands.
 Parameters that do nothing in the default -DTUNE build (their switch is off; build with the switch on to tune them): T17 (EVALDIFF_HIST),
-T18 (NMP_VER), T19 (IIR_CUT), T28 / T29 (EV_LAZY), T30 (EV_R50), T31 .. T39 (EV_INIT), T59 (CH_LMR); T62, T63 are unused.  T12 .. T16 are
+T18 (NMP_VER), T19 (IIR_CUT), T28 / T29 (EV_LAZY), T30 (EV_R50), T31 .. T39 (EV_INIT), T59 (CH_LMR); T77 .. T95 are unused.  T12 .. T16 are
 time-management constants: they act only with --tc (go wtime / btime), not with --movetime.
 """
 import argparse, json, os, random, sys, time

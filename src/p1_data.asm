@@ -489,7 +489,16 @@ section .bss  align=64
 %define RFP_MAXD 6          ; reverse futility pruning up to this depth
 %endif
 %ifndef LMP_SF
-%define LMP_SF 0            ; 1 = late move count (3 + d^2), halved when not improving (0 = (d^2 + 5) +- a quarter)
+%define LMP_SF 0            ; 1 = late move count (3 + d^2), halved when not improving (0 = (d^2 + LMP_B) +- a quarter)
+%endif
+%ifndef LMP_B
+%define LMP_B 5             ; LMP_SF 0: the constant of the late move count (T76)
+%endif
+%ifndef HIST_BMAX
+%define HIST_BMAX 1600      ; quiet history bonus min(16 * depth^2, HIST_BMAX) (T68; the factor 16 is T67)
+%endif
+%ifndef ASP_W
+%define ASP_W 20            ; first aspiration half-width (T73; helper units add (unit mod 8) * SMP_ASPSTEP)
 %endif
 %ifndef NMP_CUT
 %define NMP_CUT 1
@@ -568,12 +577,27 @@ section .bss  align=64
 
 ; ---- tunable parameters (-DTUNE): LOADT reg, index, default  =  mov reg, [tunetab + 4 * index]  (TUNE)  /  mov reg, default  (release).
 ; ---- The table is initialised from the defaults at start-up (p5_main) and overwritten by "setoption name T<index> value <n>".
-%define TUNEN 64
+%define TUNEN 96
 %macro LOADT 3
 %ifdef TUNE
     mov %1, [tunetab+(%2)*4]
 %else
     mov %1, %3
+%endif
+%endmacro
+; TCMP / TADD reg, index, default: cmp / add with the option (-DTUNE) or the immediate (release)
+%macro TCMP 3
+%ifdef TUNE
+    cmp %1, [tunetab+(%2)*4]
+%else
+    cmp %1, %3
+%endif
+%endmacro
+%macro TADD 3
+%ifdef TUNE
+    add %1, [tunetab+(%2)*4]
+%else
+    add %1, %3
 %endif
 %endmacro
 %if BB == 0

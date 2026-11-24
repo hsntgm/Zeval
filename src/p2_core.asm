@@ -3,6 +3,10 @@
 section .data
 c_lmr:      dd 0.2135
 c_075:      dd 0.75
+%ifdef TUNE
+c_i10:      dd 10
+c_i1000:    dd 1000
+%endif
 
 section .text
 global _start
@@ -174,8 +178,15 @@ init_lmr:
     fild dword [tsbuf]
     fyl2x
     fmulp
+%ifdef TUNE
+    fimul dword [tunetab+72*4]      ; -DTUNE: * T72 / 10000 + T71 / 1000 (defaults 2135 and 750: the curve below)
+    fidiv dword [c_i10]
+    fiadd dword [tunetab+71*4]
+    fidiv dword [c_i1000]
+%else
     fmul dword [c_lmr]
     fadd dword [c_075]
+%endif
     fisttp dword [tsbuf]
     mov eax, [tsbuf]
     mov ecx, ebx

@@ -1733,7 +1733,7 @@ qsearch:
 %assign NEEDTTD (EVAL_TT | NMP_TTG | TTCUT_COND | (SING > 0))
 
 ; FUTM: edx = L_SEVAL + FUT_B + FUT_M * ecx   (the futility threshold for 'ecx' plies; ecx unchanged)
-; LMPLIM: ecx = depth -> eax = the late move count of the late quiet move pruning (LMP_SF).  clobbers edx.
+; LMPLIM: ecx = depth -> eax = the late move count of the late quiet move pruning (LMP_SF; LMP_B = T76).  clobbers edx.
 ; Used by the pruning after the make and by the pre-make test (PREPRUNE), which must decide the same.
 %macro LMPLIM 0
     mov eax, ecx
@@ -1744,7 +1744,7 @@ qsearch:
     jne %%d
     shr eax, 1
 %else
-    add eax, 5                      ; (d^2 + 5) +- a quarter
+    TADD eax, 76, LMP_B             ; (d^2 + LMP_B) +- a quarter
     mov edx, eax
     shr edx, 2
     cmp dword [rbp+L_IMPR], 0
@@ -2152,7 +2152,7 @@ search:
 %endif
     ; reverse futility pruning
     mov ecx, [rbp+L_DEPTH]
-    cmp ecx, RFP_MAXD
+    TCMP ecx, 75, RFP_MAXD
     jg .rfpx
 %if RFP_EXT
     cmp dword [rbp+L_TTMV], 0       ; only when there is no TT move or it is a capture
@@ -2574,7 +2574,13 @@ search:
 %if SEE_PC
     mov eax, ecx
     imul eax, ecx
+%ifdef TUNE
+    mov esi, eax
+    imul esi, [tunetab+64*4]
+    neg esi                     ; threshold = -SEE_CM * depth^2 (T64)
+%else
     imul esi, eax, -SEE_CM      ; threshold = -SEE_CM * depth^2
+%endif
     mov edi, [rbp+L_MV]
     call see_ge
     test eax, eax
@@ -2624,7 +2630,7 @@ search:
     cmp dword [rbp+L_BEST], -MATEB
     jle .nopp
     mov ecx, [rbp+L_DEPTH]
-    cmp ecx, PR_MAXD                ; the same depth limit and count as the pruning after the make
+    TCMP ecx, 74, PR_MAXD           ; the same depth limit and count as the pruning after the make
     jg .nopp
     LMPLIM
     cmp [rbp+L_MCNT], eax
@@ -2674,7 +2680,7 @@ search:
     jz .sex
     SECNT 2
     mov eax, [rbp+L_TTDP]
-    add eax, SE_TTD
+    TADD eax, 63, SE_TTD
     cmp eax, ecx
     jl .sex
     SECNT 3
@@ -2696,7 +2702,12 @@ search:
     je .sex
     SECNT 5
     SEDCNT 0
+%ifdef TUNE
+    mov eax, [rbp+L_DEPTH]
+    imul eax, [tunetab+62*4]        ; SE_M
+%else
     imul eax, [rbp+L_DEPTH], SE_M
+%endif
     mov edx, [rbp+L_TTSC]
     sub edx, eax
     mov [rbp+L_TMP], edx            ; singularBeta
@@ -2836,7 +2847,7 @@ search:
     cmp dword [rbp+L_BEST], -MATEB
     jle .nopr
     mov ecx, [rbp+L_DEPTH]
-    cmp ecx, PR_MAXD
+    TCMP ecx, 74, PR_MAXD
     jg .nopr
     LMPLIM                          ; late move count
     cmp [rbp+L_MCNT], eax
@@ -3262,20 +3273,29 @@ search:
     mov [rdx], ecx
 .k1:mov eax, [rbp+L_DEPTH]
     imul eax, eax
+%ifdef TUNE
+    imul eax, [tunetab+67*4]        ; quiet history bonus: T67 * depth^2 (16), at most T68 (HIST_BMAX)
+%else
     shl eax, 4
-    cmp eax, 1600
+%endif
+    TCMP eax, 68, HIST_BMAX
     jle .b1
-    mov eax, 1600
+    LOADT eax, 68, HIST_BMAX
 .b1:mov [rbp+L_BONUS], eax
     mov edi, [rbp+L_MV]
     mov esi, eax
     call hist_update
 %if CONTHIST
 %if CH_BL
+%ifdef TUNE
+    mov eax, [rbp+L_DEPTH]
+    imul eax, [tunetab+65*4]        ; continuation bonus: linear in depth (T65 CH_BA, T66 CH_BMAX)
+%else
     imul eax, [rbp+L_DEPTH], CH_BA  ; continuation bonus: linear in depth
-    cmp eax, CH_BMAX
+%endif
+    TCMP eax, 66, CH_BMAX
     jle .cb1
-    mov eax, CH_BMAX
+    LOADT eax, 66, CH_BMAX
 .cb1:mov [rbp+L_TMP2], eax
 %else
     mov eax, [rbp+L_BONUS]
@@ -3308,16 +3328,26 @@ search:
 %if CAPHIST
 .capcut:                            ; a capture / promotion cut: its bonus, then the malus of the captures searched before it
     mov edi, [rbp+L_MV]
+%ifdef TUNE
+    mov esi, [rbp+L_DEPTH]
+    imul esi, [tunetab+69*4]        ; capture history bonus: T69 CAP_BA per ply, at most T70 CAP_BMAX
+%else
     imul esi, [rbp+L_DEPTH], CAP_BA
-    cmp esi, CAP_BMAX
+%endif
+    TCMP esi, 70, CAP_BMAX
     jle .cc1
-    mov esi, CAP_BMAX
+    LOADT esi, 70, CAP_BMAX
 .cc1:call cap_update
 .capmal:                            ; (also after a quiet cutoff)
+%ifdef TUNE
+    mov eax, [rbp+L_DEPTH]
+    imul eax, [tunetab+69*4]        ; capture history bonus: T69 CAP_BA per ply, at most T70 CAP_BMAX
+%else
     imul eax, [rbp+L_DEPTH], CAP_BA
-    cmp eax, CAP_BMAX
+%endif
+    TCMP eax, 70, CAP_BMAX
     jle .cc2
-    mov eax, CAP_BMAX
+    LOADT eax, 70, CAP_BMAX
 .cc2:neg eax
     mov [rbp+L_TMP], eax
     xor ebx, ebx
@@ -4099,18 +4129,37 @@ think:
     mov r14d, -INF
     mov r15d, INF
 %if HELPER
-%assign HASPW 20 + (UNIT & 7) * SMP_ASPSTEP     ; helper aspiration half-width (diversity between the threads, build switch SMP_ASPSTEP)
+%ifdef TUNE
+    mov ebx, [tunetab+73*4]     ; aspiration delta: T73 (ASP_W) + (unit mod 8) * SMP_ASPSTEP
+    add ebx, (UNIT & 7) * SMP_ASPSTEP
+    cmp r12d, 5
+    jl .asp
+    mov r14d, r13d
+    sub r14d, ebx
+    lea r15d, [r13+rbx]
+%else
+%assign HASPW ASP_W + (UNIT & 7) * SMP_ASPSTEP  ; helper aspiration half-width (diversity between the threads, build switch SMP_ASPSTEP)
     mov ebx, HASPW              ; aspiration delta
     cmp r12d, 5
     jl .asp
     lea r14d, [r13-HASPW]
     lea r15d, [r13+HASPW]
+%endif
 %else
-    mov ebx, 20                 ; aspiration delta
+%ifdef TUNE
+    mov ebx, [tunetab+73*4]     ; aspiration delta (T73, ASP_W)
     cmp r12d, 5
     jl .asp
-    lea r14d, [r13-20]
-    lea r15d, [r13+20]
+    mov r14d, r13d
+    sub r14d, ebx
+    lea r15d, [r13+rbx]
+%else
+    mov ebx, ASP_W              ; aspiration delta
+    cmp r12d, 5
+    jl .asp
+    lea r14d, [r13-ASP_W]
+    lea r15d, [r13+ASP_W]
+%endif
 %endif
 .asp:
 %if TM_INCD && HELPER == 0

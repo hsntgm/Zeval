@@ -36,7 +36,13 @@ tune_def:     dd 85, 35, NMP_RB, NMP_EDIV, 110, 90, LMR_CUTP, LMR_HT, RAZOR_B, R
               dd DELTA_M, LMR_HTC
               ; 60, 61: continuation-history pruning (CH_PM, CH_PD)
               dd CH_PM, CH_PD
-              times TUNEN-62 dd 0
+              ; 62 singular margin per ply (SE_M), 63 singular TT depth slack (SE_TTD), 64 SEE pruning of captures per depth^2 (SEE_CM),
+              ; 65, 66 continuation bonus per ply and maximum (CH_BA, CH_BMAX), 67, 68 quiet history bonus per depth^2 and maximum (16, HIST_BMAX),
+              ; 69, 70 capture history bonus per ply and maximum (CAP_BA, CAP_BMAX), 71, 72 LMR table: 1000 x base, 10000 x factor (750, 2135;
+              ; the table is rebuilt when either is set), 73 first aspiration half-width (ASP_W), 74 depth limit of the late quiet move pruning
+              ; (PR_MAXD), 75 depth limit of reverse futility pruning (RFP_MAXD), 76 constant of the late move count (LMP_B)
+              dd SE_M, SE_TTD, SEE_CM, CH_BA, CH_BMAX, 16, HIST_BMAX, CAP_BA, CAP_BMAX, 750, 2135, ASP_W, PR_MAXD, RFP_MAXD, LMP_B
+              times TUNEN-77 dd 0
 %endif
 c_quit:       db "quit",0
 c_q:          db "q",0
@@ -1027,6 +1033,11 @@ do_setoption:
     neg eax
 .tst:
     mov [tunetab+rbx*4], eax
+    cmp ebx, 71                     ; T71 / T72: the LMR table follows its curve
+    jb .ret
+    cmp ebx, 72
+    ja .ret
+    call init_lmr
 %endif
     jmp .ret                    ; unknown options (and Threads in builds without SMP: Windows, the test builds): accepted, nothing to do
 %ifdef UNITTEST
@@ -1390,6 +1401,7 @@ _start:
     mov edi, tunetab
     mov ecx, TUNEN
     rep movsd
+    call init_lmr                   ; again, now from T71 / T72
 %endif
     mov dword [moveoh], MOVEOH
 %if SMP
