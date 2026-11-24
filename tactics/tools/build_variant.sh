@@ -5,7 +5,7 @@
 #   examples:   build_variant.sh NOSEEPC "-DSEE_PC=0"           (example: SEE capture prune off)
 #               build_variant.sh DEV8    "-DDEV8SEARCH"          (the previous default search = the "DEF" engine of tactics/reference)
 #               build_variant.sh MYTEST  ""                       (plain rebuild of the default: must be bit-identical to ./zeval)
-# Flags: see candidates/FLAGS.txt and the switch descriptions in src/p1_data.asm (the default build already contains the former C6_COMBINED group; a flag only has to say what DIFFERS from the default).
+# Flags: see candidates/FLAGS.txt and the switch descriptions in src/p1_data.asm (a flag only has to say what DIFFERS from the default).
 # Same procedure as the Linux half of build/build.sh (NUNITS=32, one nasm run per thread unit, ld); needs nasm + ld.  The Windows build stays build/build.sh.
 set -e
 NAME=${1:?usage: build_variant.sh NAME [\"extra nasm flags\"]}

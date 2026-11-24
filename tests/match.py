@@ -8,7 +8,7 @@ usage: match.py A B [--games 400] [--workers 2] [--seed S] [--pool N]
                     sprt:  --elo0 -3 --elo1 3 [--alpha 0.05 --beta 0.05] [--sprt penta|tri|none]
                     engines: --optA "Threads=4;Hash=64"  --optB "Threads=1"   (UCI setoption, ';'-separated)
                     data:  --save-games g.jsonl
-                    starts: --book auto          (default) tests/books/noob_3moves.epd when it is there (the development package), else
+                    starts: --book auto          (default) tests/books/noob_3moves.epd when it is there, else
                                                  random openings; --book random = random openings; --book FILE = an EPD book.  A book
                                                  match plays a seeded random sample of --games / 2 positions of the book, each with both
                                                  colours: a new seed draws a new sample.

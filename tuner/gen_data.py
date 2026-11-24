@@ -9,8 +9,7 @@ The engine plays itself (A = B = --engine): the point is the labelled positions,
 Ctrl-C is safe: finished rounds stay on disk; start again with a higher --seed0.
 Rule of thumb: 1,000,000 quiet positions ~ 12,000-15,000 games (~80 kept positions per game in a measured sample).  --workers = physical cores, one thread per engine.
 Measured on a 2-core test machine: 30 ms/move, ~25 games per minute (so 8 cores at 50 ms: roughly 60 per minute, 15,000 games ~ 4 hours: run it overnight).
-Own data after Andrew Grant (Ethereal): --tc 2+0.02 --book auto (noob_3moves), then tuner/resolve.py on the game files (README_TUNER.txt,
-"Own data").  A clock game takes about 6-7 s at 2+0.02."""
+Own data: --tc 2+0.02 --book auto (noob_3moves), then tuner/resolve.py on the game files.  A clock game takes about 6-7 s at 2+0.02."""
 import argparse, os, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 

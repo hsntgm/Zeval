@@ -1761,7 +1761,7 @@ qsearch:
 %endif
 %%d:
 %endmacro
-; FUTM: edx = L_SEVAL + FUT_B + FUT_M * ecx   (the futility threshold for 'ecx' plies; ecx unchanged)
+; FUTM: edx = L_SEVAL + 110 + 90 * ecx   (the futility threshold for 'ecx' plies; -DTUNE: T4 + T5 * ecx; ecx unchanged)
 %macro FUTM 0
 %ifdef TUNE
     mov edx, [tunetab+5*4]
@@ -2301,7 +2301,7 @@ search:
     mov [rbp+L_TMP], eax
 .nmpv:
 %if NMP_VER
-    cmp dword [S_NMPMIN], 0         ; verification search (depth >= 16): the same node again, null move disabled for the next
+    cmp dword [S_NMPMIN], 0         ; verification search (depth >= NMP_VERD): the same node again, null move disabled for the next
     jne .nmpret                     ; 3/4 of the null-search depth; only when the null move failed high
     LOADT ecx, 18, NMP_VERD
     cmp [rbp+L_DEPTH], ecx

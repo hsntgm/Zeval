@@ -204,7 +204,7 @@ section .bss  align=64
 
 ; ---- Search switches: build-time defines (-DNAME=value, e.g. NASMFLAGS="-DRAZOR=0" sh build/build.sh).  TTPREFETCH is speed only (same
 ; ---- tree); cutNode is carried through the search.
-; ---- On by default, the group C6_COMBINED (16 switches): TM_STAB TM_FALL TM_INST TM_EFFORT RAZOR RFP_EXT FUT_LMRD NMP_TTG TTCUT_COND LMR_CUT
+; ---- On by default, a group of 16 switches: TM_STAB TM_FALL TM_INST TM_EFFORT RAZOR RFP_EXT FUT_LMRD NMP_TTG TTCUT_COND LMR_CUT
 ; ----   LMR_IMPR(=1) LMR_HIST LMR_TTC LMR_RES EVAL_TT NMP_CUT.  -DDEV8SEARCH sets each of them that is not given on the command line to 0, and
 ; ----   CONTHIST and SING too: the reference search of tests/golden_depth8_dev10_dev8search.json.
 ; ---- Off by default: IIR_CUT, EVALDIFF_HIST, NMP_VER (acts only at depth >= 14), LMR_BADCAP, LMR_MINM, LMR_IMPR=2, CHK_EXT, SEE_PQ.
@@ -238,7 +238,7 @@ section .bss  align=64
 ; ----   skips SEE only when its history is not negative.  Default: CAPHIST 2 (Zeval 1.1; Zeval 1.0 = 0; -DDEV8SEARCH forces 0).
 ; ---- Null move:  NMP_CUT 1 only at cut nodes    NMP_TTG 1 skip when the TT proves score < beta (upper bound, depth >= depth - R)
 ; ----             NMP_RB / NMP_EDIV  R = NMP_RB + depth / 4 + min(599, eval - beta) / NMP_EDIV (defaults 3 / 200)
-; ----             NMP_VER 1  at depth >= NMP_VERD (14): verification search with the null move disabled for NMP_VERPLY plies (zugzwang safety)
+; ----             NMP_VER 1  at depth >= NMP_VERD (14): verification search with the null move disabled for 3/4 of the null-search depth (zugzwang safety)
 ; ---- Static eval / pruning:  EVAL_TT 1  eval used by RFP / NMP / futility = TT score when its bound allows it ("improving" keeps the raw eval)
 ; ----   RAZOR 1  non-PV, depth <= RAZOR_MAXD (3): eval + margin < alpha -> qsearch, return it if it stays below alpha.  margin = RAZOR_B + RAZOR_M * depth * depth
 ; ----            (RAZOR_SQ 1, default: 380 / 1130 / 2380 cp) or RAZOR_B + RAZOR_M * depth (RAZOR_SQ 0)
@@ -275,7 +275,7 @@ section .bss  align=64
 %endif
 %define CORR_LIMIT 1024
 %define CORR_BMAX 256
-%ifdef DEV8SEARCH            ; reference search: the 16 switches of C6_COMBINED are 0 unless given explicitly with -D
+%ifdef DEV8SEARCH            ; reference search: the 16 switches of that group are 0 unless given explicitly with -D
 %ifndef CONTHIST
 %define CONTHIST 0           ; no continuation history in the reference search
 %endif

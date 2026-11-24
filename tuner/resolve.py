@@ -12,7 +12,7 @@ skipped; --drop-adj also skips adjudicated games (win / draw / move cap: their l
 Per game, --per-game distinct plies are drawn (seeded by --seed, the file name and the line: a run is reproducible).
 For each drawn position: "ucinewgame", "go depth D"; the PV of the last completed depth is played on a python-chess board, each move
 checked for legality (an illegal move ends the playback; a PV cut short by a TT hit is played as far as it goes).  Zeval's PV has no
-quiescence moves, and about a fifth of the PV ends lie inside an exchange (pilot): the end position is then resolved to the end of its
+quiescence moves, and about a fifth of the PV ends lie inside an exchange: the end position is then resolved to the end of its
 capture-only quiescence PV with the evaluation of the engine build (tuner/extract.py qsearch_leaf, the switches read from the engine with
 "evalcfg"; needs numpy).  --no-qsearch skips this (then use tuner/extract.py --qsearch later).
 Kept: end positions not in check, not game over, |score| below --max-cp (no mate scores).

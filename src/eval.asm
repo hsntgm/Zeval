@@ -131,7 +131,7 @@
 ;              neighbours; "below" = the ranks between their king and us.  kl_open per file without a pawn of either side below their
 ;              king; kl_storm per file where our pawn nearest to their king stands at most 3 ranks below it and is not blocked by their
 ;              pawn; kl_heavy per rook / queen of ours on a file without their pawn below their king.  Fitted on the tuning data
-;              (Zeval 1.1, tuner/params/z11_klines/): mg only.
+;              (Zeval 1.1): mg only.
 ;   EV_INIT    initiative / complexity correction of mg and eg (not linear, outside the tuner; forced to 0 by EV_TUNEMODE).  'Almost
 ;              unwinnable' = no passed pawn, outflanking < 0 and pawns on one flank only.
 ;   EV_GRAIN   0 (default; forced to 0 by EV_TUNEMODE).  1: the tapered score is truncated to a multiple of EV_GRAINS (8) before sign and tempo.
