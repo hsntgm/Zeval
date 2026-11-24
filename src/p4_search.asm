@@ -242,6 +242,70 @@
 %endif
 %endif
 %endmacro
+; ---- HSTAT (test build): history-pruning counters of the main thread, console command "hstat" prints hstc[0..17].
+; ----   0 CH_PRUNE tests   1 CH_PRUNE prunes   2 .. 8 row(ply - 1) + row(ply - 2) at the test: < -16000, < -8000, < -3000, < 0, < 3000,
+; ----   < 8000, >= 8000   9 LMR_HIST steps tested   10 history step -1   11 history step +1   12 .. 17 histtab at that step: < -8000,
+; ----   < -2000, < 0, < 2000, < 8000, >= 8000
+%macro HSCNT 1
+%ifdef HSTAT
+%if UNIT == 0
+    inc qword [hstc+%1*8]
+%endif
+%endif
+%endmacro
+%macro HSB7 1                       ; HSTAT: counter 2 + class of %1 (-16000 -8000 -3000 0 3000 8000)
+%ifdef HSTAT
+%if UNIT == 0
+    push rcx
+    mov ecx, 2
+    cmp %1, -16000
+    jl %%d
+    inc ecx
+    cmp %1, -8000
+    jl %%d
+    inc ecx
+    cmp %1, -3000
+    jl %%d
+    inc ecx
+    cmp %1, 0
+    jl %%d
+    inc ecx
+    cmp %1, 3000
+    jl %%d
+    inc ecx
+    cmp %1, 8000
+    jl %%d
+    inc ecx
+%%d:inc qword [hstc+rcx*8]
+    pop rcx
+%endif
+%endif
+%endmacro
+%macro HSB6 1                       ; HSTAT: counter 12 + class of %1 (-8000 -2000 0 2000 8000)
+%ifdef HSTAT
+%if UNIT == 0
+    push rcx
+    mov ecx, 12
+    cmp %1, -8000
+    jl %%d
+    inc ecx
+    cmp %1, -2000
+    jl %%d
+    inc ecx
+    cmp %1, 0
+    jl %%d
+    inc ecx
+    cmp %1, 2000
+    jl %%d
+    inc ecx
+    cmp %1, 8000
+    jl %%d
+    inc ecx
+%%d:inc qword [hstc+rcx*8]
+    pop rcx
+%endif
+%endif
+%endmacro
 %macro SECNT 1
 %ifdef SESTAT
 %if UNIT == 0
@@ -2809,11 +2873,19 @@ search:
     mov r8, [chp+rax*8]
     movsx eax, word [r8+rdx*2]
     add r9d, eax                    ; row(ply - 1) + row(ply - 2)
+    HSCNT 0
+    HSB7 r9d
     LOADT eax, 60, CH_PM
     imul eax, ecx
     neg eax
     cmp r9d, eax
+%ifdef HSTAT
+    jge .chp0
+    HSCNT 1
+    jmp .prune
+%else
     jl .prune
+%endif
 .chp0:
     mov ecx, [rbp+L_DEPTH]
 %endif
@@ -2969,14 +3041,18 @@ search:
     jl .lh0
     LOADT edx, 7, LMR_HT
 %endif
+    HSCNT 9
+    HSB6 eax
     cmp eax, edx
     jle .lhn
+    HSCNT 10
     dec r13d
     jmp .lh0
 .lhn:
     neg edx
     cmp eax, edx
     jge .lh0
+    HSCNT 11
     inc r13d
 .lh0:
 %endif

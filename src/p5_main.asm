@@ -60,6 +60,9 @@ c_sestat:     db "sestat",0
 %ifdef PCVERIFY
 c_pcstat:     db "pcstat",0
 %endif
+%ifdef HSTAT
+c_hstat:      db "hstat",0
+%endif
 %ifdef ORDSTAT
 c_ordstat:    db "ordstat",0
 s_ordstat:    db "ordstat "
@@ -1636,6 +1639,28 @@ _start:
     jmp .loop
 .n7s:
 %endif
+%ifdef HSTAT
+    mov edi, c_hstat                ; (test build) history-pruning counters of the main thread, see HSTAT in p4_search.asm
+    call cmdcmp
+    test eax, eax
+    jz .n7hs
+    OBS c_hstat, 5
+    push rbx
+    xor ebx, ebx
+.hl:mov al, ' '
+    call ob_ch
+    mov rax, [hstc+rbx*8]
+    call ob_num
+    inc ebx
+    cmp ebx, 18
+    jb .hl
+    pop rbx
+    mov al, 10
+    call ob_ch
+    call ob_flush
+    jmp .loop
+.n7hs:
+%endif
 %ifdef PCVERIFY
     mov edi, c_pcstat               ; (test build) ProbCut counters of the main thread, see PCVERIFY in p4_search.asm
     call cmdcmp
@@ -1758,6 +1783,14 @@ section .text
 section .bss
 alignb 64
 sestc:      resq 32
+section .text
+%endif
+%endif
+%ifdef HSTAT
+%if UNIT == 0
+section .bss
+alignb 64
+hstc:       resq 32
 section .text
 %endif
 %endif
