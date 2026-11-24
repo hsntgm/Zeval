@@ -8,6 +8,8 @@ Inputs (any mix):
         rnbqkbnr/... w KQkq - 0 1; [1.0]          (result in brackets: also [0.5] [0.0] [0.62])
         rnbqkbnr/... w KQkq - c9 "1-0";           (result as an EPD opcode: 1-0 / 1/2-1/2 / 0-1)
     --stm-wdl: the label is from the side-to-move's view (default: White's).
+    An optional token game=NAME (tuner/resolve.py writes it) puts all positions with the same NAME into one group (one game for the
+    train / validation split and the bootstrap); without it every position is its own group.
   * a sources file (csv):   --sources sources.csv   lines "path,wdl_from_side_to_move(0/1),limit"  (# = comment)
 
 --limit N / the 3rd csv column count INPUT LINES per file, not positions:  a .jsonl file = N GAMES (each gives ~80 positions), an EPD file = N positions.
@@ -210,7 +212,11 @@ def work_epd(args):
                     st["in_check"] = st.get("in_check", 0) + 1; continue
                 if o["qsearch"]:
                     fen = qsearch_leaf(b).fen()
-            if acc.add(fen, y, float("nan"), base_group + li): st["kept"] += 1
+            grp = base_group + li
+            if len(f) > 4 and "game=" in f[4]:
+                tag = f[4].split("game=", 1)[1].split()[0]
+                grp = (1 << 62) | (int.from_bytes(hashlib.blake2b(tag.encode(), digest_size=8).digest(), "little") >> 2)
+            if acc.add(fen, y, float("nan"), grp): st["kept"] += 1
             else: st["special"] += 1
         except (ValueError, KeyError, IndexError):
             st["bad"] += 1

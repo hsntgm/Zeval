@@ -10,6 +10,7 @@ reference) instead of re-running the code under test, so a bug that the code sha
   G  groups      --free masks, never_free, shadowed term names
   A  apply       patch idempotency, read-back of random tables, text outside the tables untouched
   N  normalise   tune.scale_to and tune.py --norm-scale (the eval scale of a retune kept at that of the start tables)
+  R  resolve     resolve.py: ply sampling, info parsing, PV playback, label side, filters, side file vs a separate search, resume (engine)
 
 usage: python3 tuner/micro_tests.py [--engine ./zeval] [--n 1500] [--only PREFIX]
 exit code 0 = every test passed (INFO lines are not failures)."""
@@ -19,7 +20,7 @@ import scipy.sparse as sp
 import chess
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, "..", "tests"))
-import model, tune, extract, check_eval, apply_params
+import model, tune, extract, check_eval, apply_params, resolve
 from scipy.special import expit
 
 TESTS = []; FAILS = []; INFOS = []
@@ -557,6 +558,82 @@ def _():
         for bad in ("abc", "0", "-5"):
             r = subprocess.run([sys.executable, os.path.join(HERE, "tune.py"), npz, "--out", os.path.join(td, "c.json"), "--norm-scale", bad], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120)
             ok(r.returncode != 0 and "--norm-scale" in r.stdout.decode(), f"--norm-scale {bad}: must stop with a message, rc {r.returncode}")
+
+
+# ================================================================================================== R: resolve
+@test("R1", "resolve: ply sampling distinct, sorted, reproducible, all plies when the game is short; parse_info cp / mate / bounds")
+def _():
+    a = resolve.pick_plies(60, 10, 1, "x/sp_1.jsonl", 7)
+    ok(len(a) == 10 and len(set(a)) == 10 and a == sorted(a) and all(0 <= i < 60 for i in a), f"bad sample {a}")
+    ok(a == resolve.pick_plies(60, 10, 1, "other/sp_1.jsonl", 7), "the sample must depend on the file name, not its folder")
+    ok(a != resolve.pick_plies(60, 10, 1, "x/sp_1.jsonl", 8) or a != resolve.pick_plies(60, 10, 2, "x/sp_1.jsonl", 7), "line / seed do not change the sample")
+    ok(resolve.pick_plies(7, 10, 1, "g", 1) == list(range(7)), "a game with fewer plies than --per-game gives all of them")
+    pi = resolve.parse_info
+    ok(pi("info depth 12 seldepth 20 score cp -34 nodes 5 pv e2e4 e7e5") == (12, -34, "", ["e2e4", "e7e5"]), "cp line")
+    ok(pi("info depth 9 score mate -3 nodes 5 pv a1a2")[1] == -resolve.MATE and pi("info depth 9 score mate 2 pv a1a2")[1] == resolve.MATE, "mate")
+    ok(pi("info depth 9 score cp 20 lowerbound nodes 5 pv a1a2")[2] == "lowerbound", "bound")
+    ok(pi("info depth 9 score cp 20 nodes 5") is None and pi("info string tmc 1 2 3") is None, "a line without pv / score must give None")
+    b, n = resolve.play_pv("4k3/8/8/8/8/8/8/4K2R w K - 0 1", ["e1g1", "e8d8", "f1f8", "a1a2"])
+    ok(n == 3 and b.board_fen() == "3k1R2/8/8/8/8/8/8/6K1", f"PV playback: {n} {b.board_fen()} (castling, then stop at the illegal move)")
+
+
+@test("R2", "resolve (engine): skips fail / short games, labels from White's view, end positions quiet of check, side file = a separate search")
+def _():
+    rnd = random.Random(11); games = []
+    for g in range(4):
+        b = chess.Board(); pl = []
+        while len(pl) < 34 and not b.is_game_over():
+            m = rnd.choice(list(b.legal_moves)); pl.append([b.fen(), 0, m.uci(), int(b.is_capture(m)), int(b.gives_check(m))]); b.push(m)
+        games.append({"plies": pl if g != 2 else pl[:12], "adj": "fail" if g == 1 else None, "result_white": [0.0, 1.0, 0.5, 1.0][g]})
+    with tempfile.TemporaryDirectory() as td:
+        p = os.path.join(td, "g.jsonl"); open(p, "w").write("\n".join(json.dumps(g) for g in games) + "\n")
+        out = os.path.join(td, "own.epd")
+        cmd = [sys.executable, os.path.join(HERE, "resolve.py"), p, "--engine", ENG[0], "--out", out, "--depth", "5", "--per-game", "4", "--no-qsearch", "--workers", "1"]
+        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300); txt = r.stdout.decode()
+        ok(r.returncode == 0, txt[-500:])
+        lines = open(out).read().split("\n")[:-1]; inf = [l.split("\t") for l in open(out + ".info").read().split("\n")[:-1]]
+        ok(len(lines) == len(inf) and 0 < len(lines) <= 8, f"{len(lines)} positions, {len(inf)} info lines (games 0 and 3 only, 4 plies each)\n{txt[-400:]}")
+        ok({int(t[1]) for t in inf} <= {1, 4}, f"positions from a fail / short game: {sorted({t[1] for t in inf})}")
+        ok("fail 1" in txt and "short 1" in txt, f"skip counts missing: {txt[-300:]}")
+        e = resolve.Eng(ENG[0], "Hash=16;Threads=1")
+        try:
+            for l, t in zip(lines, inf):
+                f = l.split(); fen = " ".join(f[:6]); g = games[int(t[1]) - 1]
+                ok(f[6] == {1.0: "[1.0]", 0.0: "[0.0]", 0.5: "[0.5]"}[g["result_white"]], f"label {f[6]} is not the game result from White's view")
+                bb = chess.Board(fen); ok(bb.is_valid() and not bb.is_check() and not bb.is_game_over(), f"end position not usable: {fen}")
+                start = g["plies"][int(t[2])][0]
+                e.send("ucinewgame"); e.send("isready"); e.wait("readyok", 30); e.send("position fen " + start); e.send("go depth 5")
+                last = None
+                while True:
+                    x = e.readline(30)
+                    if x.startswith("info") and " pv " in x and "bound" not in x: last = x.split()
+                    if x.startswith("bestmove"): break
+                pv = last[last.index("pv") + 1:]; sc = int(last[last.index("cp") + 1]) if "cp" in last else None
+                c = chess.Board(start); k = 0
+                for u in pv:
+                    mv = chess.Move.from_uci(u)
+                    if mv not in c.legal_moves: break
+                    c.push(mv); k += 1
+                ok(c.fen() == fen and k == int(t[3]), f"PV end differs from a separate search: {c.fen()} vs {fen} ({k} vs {t[3]} moves)")
+                ok(sc is not None and int(t[4]) == (sc if start.split()[1] == "w" else -sc), f"side-file score {t[4]} is not the depth-5 score in White's view ({sc})")
+        finally:
+            e.quit()
+        r2 = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300); t2 = r2.stdout.decode()
+        ok(r2.returncode == 0 and "2 games already done" in t2 and len(open(out).read().split("\n")[:-1]) == len(lines), f"resume: {t2[-300:]}")
+        r3 = subprocess.run(cmd[:-5] + ["--per-game", "3", "--workers", "1"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
+        ok(r3.returncode != 0 and "other arguments" in r3.stdout.decode(), "a resume with other arguments must stop with a message")
+        out2 = os.path.join(td, "q.epd")
+        r4 = subprocess.run(cmd[:cmd.index("--out")] + ["--out", out2, "--depth", "5", "--per-game", "4", "--workers", "1"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
+        ok(r4.returncode == 0, r4.stdout.decode()[-400:])
+        q = [l.split("\t") for l in open(out2 + ".info").read().split("\n")[:-1]]; qe = open(out2).read().split("\n")[:-1]
+        ok(len(q) == len(qe) > 0, "quiescence run: no positions")
+        for l, t in zip(qe, q):
+            b = chess.Board(" ".join(l.split()[:6])); f0 = b.fen()
+            ok(extract.qsearch_leaf(b).fen() == f0, f"a resolved position is not quiet for the quiescence search: {f0}")
+            ok(int(t[5]) >= 0 and t[6] == f0, f"side file: quiescence plies / end FEN {t[5:]} vs {f0}")
+        npz = os.path.join(td, "q.npz"); run_extract(npz, [out2])
+        d = tune.load(npz, np.float64)
+        ok(d.n > 0 and len(np.unique(d.grp)) == len({t[1] for t in q}), f"groups {len(np.unique(d.grp))} != games {len({t[1] for t in q})} (game= tag)")
 
 
 # ================================================================================================== main
