@@ -325,7 +325,55 @@ These are not tuned by `tuner/tune.py`:
 
 ---
 
-## 3. Open work
+## 3. Test and diagnostic builds
+
+These flags are never set in a release build. They are set with `-DNAME` and mostly built with
+`sh tests/build1.sh OUT -DNAME`. The multi-unit test builds come from `tools/build_testbuilds.sh`.
+
+**Statistics:** a console command prints counters of the main thread.
+
+| Flag | Command | What it counts | Used by |
+|---|---|---|---|
+| `ORDSTAT` | `ordstat` | Move ordering: first-move cutoff rates, cutoff move class (TT move, capture, killer, quiet), rank of the cutoff move, captures before a quiet cutoff | `tests/t_ordering.py` |
+| `HSTAT` | `hstat` | History pruning: `CH_PRUNE` tests and prunes with the continuation score by class, `LMR_HIST` steps with the history by class | manual |
+| `SESTAT` | `sestat` | Singular extension: tests, singular, multi-cut, neither, by depth | `tests/t_singular.py` |
+| `PCVERIFY` | `pcstat` | ProbCut: tries, captures searched, would-be cuts, and how many the normal search refutes (no cut is made) | manual |
+| `EVALPROF` | `evalprof` | Eval calls, rdtsc cycles, pawn cache probes and hits | `tests/t_phash.py` |
+| `CHSHTEST` | `chsum` | Entries of every unit's continuation history table (`CH_SHARED`) | `tests/t_chshared.py` |
+| `TMCDBG` | `info string tmc ...` | Soft and hard time limit of every clock-based `go` | `tests/t_tmcurve.py` |
+| `VOTETEST` | `info string vote ...` | Candidates and winner of the Lazy SMP vote | `tests/t_smp_vote.py` |
+| `SEETEST` | `see MOVE THRESHOLD` | SEE of a single move against a threshold | `tests/t_see.py` |
+
+**Verification:** a second computation is compared with the fast path, and the engine exits with an error code on a
+difference.
+
+| Flag | What it checks | Used by |
+|---|---|---|
+| `PPVERIFY` | Pre-make legality and check test (`PREPRUNE`) against make / unmake | `tests/t_ppverify.py` |
+| `PICKVERIFY` | SIMD move pick against the scalar loop (exit 6) | with `PPVERIFY` |
+| `INCHKVERIFY` | In-check hint against a fresh in-check test (exit 4 / 5) | with `PPVERIFY` |
+| `CUTVERIFY` | cutNode is 0 / 1 and never set at a PV node (exit 7) | manual |
+| `SEVERIFY` | Exclusion search never in check, never makes the excluded move, never stores, never searches another position (exit 8 .. 11) | `tests/t_singular.py` |
+| `FORCE_SSE2` | Forces the SSE2 copy of the move pick | manual |
+
+**Test harness builds:**
+
+| Flag | What it does | Used by |
+|---|---|---|
+| `UNITTEST` | Single-thread engine with a UCI option `Unit`: the search runs in thread unit k | `tests/t_units.py`, `t_units_conc.py`, `verify_units.bat` |
+| `UNITBREAK` | A unit that does not receive the position, to prove that `t_units.py` fails | `tests/t_units.py` |
+| `SMPTEST` | Helpers run to their own end without stop, `CH_SHARED` forced off, unit reports | `tests/t_smp_equiv.py`, `verify_smp.bat` |
+| `NOTT` | Transposition table off: concurrent searches become deterministic | `t_units_conc.py`, `t_smp_equiv.py` |
+| `TTPLAIN` | Plain (not lock-free) TT stores, the variant that must fail the race test | `tests/t_ttrace.py` |
+| `TTRACE` | A pause between the two TT stores to provoke races | `tests/t_ttrace.py` |
+| `TTFUZZ` | TT probes return random moves | `tests/t_ttfuzz.py` |
+| `TUNE` | Constants read from the options `T0` .. `T84` (sections 1.3, 2.4) | `tools/spsa.py` |
+| `NOSMP` | Single-thread engine on either OS | manual |
+| `WIN` | Windows target (set by the build scripts) | `build/` |
+
+---
+
+## 4. Open work
 
 **Retest at a longer time control**, 10+0.1 or longer, at least 2 × 1000 games:
 
