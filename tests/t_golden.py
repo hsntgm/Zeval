@@ -27,7 +27,7 @@ GOLDEN_TIMEOUT = seconds one search may take before the engine counts as hung (d
 """
 import subprocess, sys, re, os, json, random
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _eng import resolve as engine_cmd, expect, finish, start
+from _eng import resolve as engine_cmd, expect, finish, start, default_engine
 
 TIMEOUT = float(os.environ.get("GOLDEN_TIMEOUT", "600"))
 
@@ -83,7 +83,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "--make":
          int(sys.argv[5]) if len(sys.argv) > 5 else 8)
     sys.exit(0)
 
-eng = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("ENGINE", "zeval.exe" if os.name == "nt" else "./zeval")
+eng = sys.argv[1] if len(sys.argv) > 1 else (os.environ.get("ENGINE") or default_engine())
 if eng.startswith("--"): sys.exit("usage: t_golden.py [engine] [golden.json]   |   t_golden.py --make engine out.json [positions] [depth]")
 gold = sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden_depth8.json")
 g = json.load(open(gold))

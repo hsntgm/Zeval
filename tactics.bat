@@ -9,7 +9,7 @@ rem   tactics.bat full                        all 7 suites @ 1000 ms (~19 min, p
 rem   tactics.bat ab ENGINE_A ENGINE_B        alternating A/B on this machine + analysis   [--profile smoke^|standard^|full]
 rem   tactics.bat baseline ^| list ^| analyze TAG NAME_A NAME_B
 rem Options of smoke / standard / full:  -e ENGINE  -n NAME  -t MOVETIME_MS  --suites a,b  --hash MB  --fresh
-rem Default engine = zeval.exe next to this file (environment variable ENGINE overrides).  Needs Python 3.8+ (python.org);  pip install chess  for the analysis.
+rem Default engine = zeval.exe next to this file, else dist\zeval.exe (environment variable ENGINE overrides).  Needs Python 3.8+ (python.org);  pip install chess  for the analysis.
 rem 'variant' (building engine variants) is Linux only; on Windows build candidates with build\build.bat and pass the exe to  ab.
 rem NOTE: written and checked on Linux only (the python code is portable, this wrapper was not run on Windows).
 setlocal

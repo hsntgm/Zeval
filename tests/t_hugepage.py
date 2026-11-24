@@ -15,10 +15,10 @@ usage: python3 tests/t_hugepage.py [engine]        exit code 0 = passed or skipp
 """
 import os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _eng import resolve, expect, finish, start
+from _eng import resolve, expect, finish, start, default_engine
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-EXE = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("ENGINE", os.path.join(os.path.dirname(HERE), "zeval"))
+EXE = sys.argv[1] if len(sys.argv) > 1 else (os.environ.get("ENGINE") or default_engine())
 if not os.path.isdir("/proc/self") or EXE.lower().endswith(".exe"):
     print("SKIP: needs Linux /proc and the Linux engine"); sys.exit(0)
 try: THP = re.search(r"\[(\w+)\]", open("/sys/kernel/mm/transparent_hugepage/enabled").read())[1]

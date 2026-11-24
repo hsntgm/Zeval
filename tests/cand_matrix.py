@@ -127,7 +127,9 @@ def main():
     ap.add_argument("--games", type=int, default=1000)
     ap.add_argument("--tc", default="3+0.03")
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 4) - 2))
-    ap.add_argument("--base", default="zeval.exe" if os.name == "nt" else "zeval")
+    exe = "zeval.exe" if os.name == "nt" else "zeval"
+    ap.add_argument("--base", default=exe if os.path.isfile(exe) or not os.path.isfile(os.path.join("dist", exe)) else os.path.join("dist", exe),
+                    help="the default engine (default: zeval.exe / zeval here, else in dist/)")
     ap.add_argument("--out", default=os.path.join("results", "matrix"))
     ap.add_argument("--order", default="",
                     help="comma-separated play order of the default candidate list (names not in it follow, sorted)")

@@ -30,7 +30,9 @@ def sha(p):
     return h.hexdigest()
 
 
-ap = argparse.ArgumentParser(); ap.add_argument("--engine", default=os.path.join(ROOT, "zeval.exe" if os.name == "nt" else "zeval")); a = ap.parse_args()
+EXE = "zeval.exe" if os.name == "nt" else "zeval"           # the root of the checkout, else its dist/ folder (build/build.sh, build\build.bat)
+DEF_ENGINE = next((p for p in (os.path.join(ROOT, EXE), os.path.join(ROOT, "dist", EXE)) if os.path.isfile(p)), os.path.join(ROOT, EXE))
+ap = argparse.ArgumentParser(); ap.add_argument("--engine", default=DEF_ENGINE); a = ap.parse_args()
 
 # 1 data hashes
 sums = os.path.join(TAC, "SHA256SUMS.txt"); bad = []; n = 0

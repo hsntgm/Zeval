@@ -176,7 +176,9 @@ python3 tests/t_uci.py                     # UCI conformance
 ./tactics.sh smoke                         # tactical smoke test (Windows: tactics.bat)
 ```
 
-On Windows, `verify.bat` checks a build against the recorded reference.
+The test scripts use `zeval` (`zeval.exe` on Windows) in the root of the checkout, else the one in `dist/`; `ENGINE=path` selects another build.
+
+On Windows, `verify.bat` checks a build against the recorded reference. `verify_smp.bat` and `verify_units.bat` also need test builds, made with `tools\build_testbuilds.bat` (Linux: `sh tools/build_testbuilds.sh`).
 
 `tests/match.py` plays self-play matches with paired openings and a pentanomial SPRT; changes to the search and the evaluation are decided by such matches.
 
@@ -351,7 +353,9 @@ python3 tests/t_uci.py                     # UCI uyumluluğu
 ./tactics.sh smoke                         # hızlı taktik testi (Windows: tactics.bat)
 ```
 
-Windows'ta `verify.bat`, bir derlemeyi kayıtlı referansla karşılaştırır.
+Test betikleri deponun kökündeki `zeval`'i (Windows'ta `zeval.exe`), yoksa `dist/` altındakini kullanır; başka bir derleme için `ENGINE=yol`.
+
+Windows'ta `verify.bat`, bir derlemeyi kayıtlı referansla karşılaştırır. `verify_smp.bat` ve `verify_units.bat` ayrıca test derlemelerine ihtiyaç duyar; bunlar `tools\build_testbuilds.bat` ile üretilir (Linux: `sh tools/build_testbuilds.sh`).
 
 `tests/match.py`, eşleştirilmiş açılışlar ve pentanomial SPRT ile self-play maçlar oynatır; arama ve değerlendirmedeki değişikliklere bu tür maçlarla karar verilir.
 

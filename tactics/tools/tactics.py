@@ -33,9 +33,12 @@ def die(msg, code=2):
 
 
 def default_engine():
-    for c in (os.environ.get("ENGINE"), os.path.join(ROOT, "zeval.exe" if os.name == "nt" else "zeval")):
-        if c: return c
-    return "zeval"
+    """ENGINE, else zeval / zeval.exe in the root of the checkout, else in its dist/ folder (where build/build.sh and build\\build.bat put it)"""
+    if os.environ.get("ENGINE"): return os.environ["ENGINE"]
+    exe = "zeval.exe" if os.name == "nt" else "zeval"
+    for c in (os.path.join(ROOT, exe), os.path.join(ROOT, "dist", exe)):
+        if os.path.isfile(c): return c
+    return os.path.join(ROOT, exe)
 
 
 def engine_cmd(s): return [s] if os.path.exists(s) else shlex.split(s, posix=(os.name != "nt"))
@@ -130,7 +133,9 @@ def cmd_profile(a):
     for s in suites.split(","):
         if s not in ALLSUITES: die(f"unknown suite {s} (have {', '.join(ALLSUITES)})")
     ok, _ = uci_ok(a.engine)
-    if not ok: die(f"engine '{a.engine}' does not answer uci/isready (use -e PATH; run './tactics.sh check')")
+    if not ok:
+        if not engine_file(a.engine): die(f"engine '{a.engine}' not found: build it first with  sh build/build.sh  (Windows: build\\build.bat), or use -e PATH")
+        die(f"engine '{a.engine}' does not answer uci/isready (use -e PATH; run './tactics.sh check')")
     label = label_for(a.engine, a.name)
     announce(f"{a.cmd} ({what})", suites, movetime)
     print(f"   engine {a.engine}  name {label}", flush=True)

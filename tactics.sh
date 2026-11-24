@@ -10,7 +10,7 @@
 #   ./tactics.sh variant NAME -DFLAG=..       build tactics/bin/zeval_NAME (default + extra nasm flags)
 #   ./tactics.sh baseline | list | analyze TAG NAME_A NAME_B
 # Options of smoke / standard / full:  -e ENGINE   -n NAME   -t MOVETIME_MS   --suites a,b   --hash MB   --fresh        (./tactics.sh standard --help)
-# Default engine = ./zeval next to this file (env ENGINE overrides).  Results: tactics/results/  (resumable: run the same command again).
+# Default engine = ./zeval next to this file, else dist/zeval (env ENGINE overrides).  Results: tactics/results/  (resumable: run the same command again).
 cd "$(dirname "$0")" || exit 1
 for P in python3 python; do
   if command -v "$P" >/dev/null 2>&1 && "$P" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' 2>/dev/null; then

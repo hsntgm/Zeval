@@ -146,6 +146,8 @@ def dense(n, seed):
 
 
 def main():
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        sys.exit("usage: t_see.py ENGINE [positions] [seed] [playout|dense]   (a -DSEETEST build:  sh tests/build1.sh ./zeval_see -DSEETEST)")
     path = sys.argv[1]
     npos = int(sys.argv[2]) if len(sys.argv) > 2 else 3000
     seed = int(sys.argv[3]) if len(sys.argv) > 3 else 1

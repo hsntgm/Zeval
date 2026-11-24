@@ -22,12 +22,12 @@ usage:  t_singular.py [ENGINE] [--depth 10] [--n 60] [--play 40]
 exit codes: 0 all checks passed, 1 a check failed (SEVERIFY exit codes are named), 2 engine / harness could not be run (also: not a SESTAT build)."""
 import argparse, json, os, random, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _eng import resolve, expect, finish, start
+from _eng import resolve, expect, finish, start, default_engine
 
 SEV = {8: "exclusion search in check", 9: "excluded move made", 10: "exclusion search stored to the table", 11: "exclusion search on another position"}
 DCL = ["6-7", "8-9", "10-12", "13+"]
 ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-ap.add_argument("engine", nargs="?", default=os.environ.get("ENGINE", "./zeval"))
+ap.add_argument("engine", nargs="?", default=os.environ.get("ENGINE") or default_engine())
 ap.add_argument("--depth", type=int, default=10)
 ap.add_argument("--n", type=int, default=60)
 ap.add_argument("--play", type=int, default=40)

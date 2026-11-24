@@ -5,7 +5,7 @@ Thread counts and CPU time per thread come from /proc/<pid>/task (Linux; under W
 way) or, where there is no /proc (Windows), from psutil (pip install psutil).  Without either, the thread-count and idle checks
 are skipped (printed) and the join in smp_stop is covered by checks 4 / 6 / 7 (no hang, exit code 0, legal moves).
 
-usage: python3 tests/t_smp.py [engine] [--pool auto|0|1] [--psutil]   (default ./zeval, a Linux release build; needs python-chess)
+usage: python3 tests/t_smp.py [engine] [--pool auto|0|1] [--psutil]   (default ./zeval, else dist/zeval; a Linux release build; needs python-chess)
        --psutil: use psutil also where /proc exists (self-test of the Windows path on Linux).      exit code 0 = everything passed
 
 Two thread models (SMP_POOL in src/p1_data.asm): 0 = a new thread per helper and search, joined at its end; 1 = persistent helper
@@ -32,12 +32,12 @@ stop, or waiting threads that spin, use far more (measured: a pool whose 31 wait
 import os, re, subprocess, sys, time
 import chess, shlex
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _eng import LineReader, EngineGone      # timed reads: a hung engine hits the timeouts below
+from _eng import LineReader, EngineGone, default_engine      # timed reads: a hung engine hits the timeouts below
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _pos = [a for i, a in enumerate(sys.argv[1:], 1) if not a.startswith("--") and sys.argv[i - 1] != "--pool"]
 FORCE_PSUTIL = "--psutil" in sys.argv
-EXE = _pos[0] if _pos else os.path.join(os.path.dirname(HERE), "zeval")
+EXE = _pos[0] if _pos else default_engine()
 CMD = [EXE] if os.path.exists(EXE) else shlex.split(EXE, posix=(os.name != "nt"))     # a path, or a command line such as "wine zeval.exe"
 WIN = EXE.lower().endswith(".exe") or os.environ.get("SMP_WIN") == "1" or os.name == "nt"
 BASE = 1 if WIN else 0                                   # zeval.exe: + the stdin reader thread

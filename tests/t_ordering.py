@@ -35,13 +35,13 @@ Instrument checks: the counter sums agree, the TT move is the first move picked 
 three positions gives identical counters."""
 import argparse, json, os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _eng import resolve, expect, finish, start
+from _eng import resolve, expect, finish, start, default_engine
 
 NC = 80                 # counters printed by 'ordstat' (64 .. 72: captures, see ORDCAP in src/p4_search.asm; older references hold 64)
 DCL = ["1", "2", "3", "4", "5-7", "8+"]
 NTY = ["PV", "cut", "all"]
 ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-ap.add_argument("engine", nargs="?", default=os.environ.get("ENGINE", "./zeval"))
+ap.add_argument("engine", nargs="?", default=os.environ.get("ENGINE") or default_engine())
 ap.add_argument("--depth", type=int, default=10)
 ap.add_argument("--n", type=int, default=60)
 ap.add_argument("--save"); ap.add_argument("--ref"); ap.add_argument("--ab")

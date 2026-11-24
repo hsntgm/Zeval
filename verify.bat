@@ -1,11 +1,12 @@
 @echo off
 rem Regression check of a Windows build against the recorded Linux reference (needs Python 3 only).
-rem usage:  verify.bat [path\to\zeval.exe]        (default: zeval.exe next to this file)
+rem usage:  verify.bat [path\to\zeval.exe]        (default: zeval.exe next to this file, else dist\zeval.exe of build\build.bat)
 setlocal
 cd /d "%~dp0"
 set "ENGINE=%~1"
 if "%ENGINE%"=="" set "ENGINE=%~dp0zeval.exe"
-if not exist "%ENGINE%" (echo ERROR: engine not found: %ENGINE% & exit /b 1)
+if "%~1"=="" if not exist "%ENGINE%" set "ENGINE=%~dp0dist\zeval.exe"
+if not exist "%ENGINE%" (echo ERROR: engine not found: %ENGINE%  - build it first with build\build.bat & exit /b 1)
 echo === 1/5 golden search comparison vs Linux reference (60 positions, depth 8)
 python tests\t_golden.py || exit /b 1
 echo === 2/5 robustness (piped commands, EOF, go infinite, long lines, console mode, malformed FEN)

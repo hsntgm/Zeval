@@ -1,7 +1,8 @@
 """Shared helper for the test scripts: which engine binary to run, a portable pipe reader, and hang protection.
 
-Engine selection:  environment variable ENGINE  (default: zeval.exe on Windows, ./zeval elsewhere).
-It may be a path (spaces are fine) or a command line such as "wine zeval.exe".
+Engine selection:  environment variable ENGINE; without it zeval (zeval.exe on Windows) in the current folder, else in the root of the
+checkout, else in its dist/ folder (where build/build.sh and build\build.bat put it).  ENGINE may be a path (spaces are fine) or a
+command line such as "wine zeval.exe".
 select() does not work on pipes under Windows, so output is read by a small thread (PipeReader).
 
 Hang protection.  A test script that waits for "uciok" / "readyok" / "bestmove" with a bare  while readline() != X: pass  loop spins
@@ -17,7 +18,21 @@ import os, shlex, sys, threading, queue, time
 def resolve(s):
     return [s] if os.path.exists(s) else shlex.split(s, posix=(os.name != "nt"))
 
-ENGINE = resolve(os.environ.get("ENGINE", "zeval.exe" if os.name == "nt" else "./zeval"))
+def default_engine():
+    """the engine when ENGINE is not set: zeval / zeval.exe in the current folder, the root of the checkout or its dist/ folder"""
+    exe = "zeval.exe" if os.name == "nt" else "zeval"
+    here = exe if os.name == "nt" else "./" + exe
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for p in (here, os.path.join(root, exe), os.path.join(root, "dist", exe)):
+        if os.path.isfile(p): return p
+    return here
+
+
+NO_ENGINE = ("no engine found (zeval / zeval.exe in this folder, the root of the checkout or dist/): build it first with  sh build/build.sh"
+             "  (Windows: build\\build.bat), or set ENGINE")
+ENGINE = resolve(os.environ.get("ENGINE") or default_engine())
+if not os.environ.get("ENGINE") and not os.path.isfile(ENGINE[0]):
+    sys.stderr.write("note: " + NO_ENGINE + "\n")
 
 
 class EngineGone(Exception):
