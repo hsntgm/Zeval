@@ -26,7 +26,7 @@ def main():
         seed = a.seed0 + r
         out = os.path.join(a.out, f"sp_{seed}.jsonl")
         cmd = [sys.executable, match, a.engine, a.engine, "--nosprt", "--games", str(a.games), "--movetime", str(a.movetime), "--workers", str(a.workers),
-               "--seed", str(seed), "--save-games", out]
+               "--seed", str(seed), "--save-games", out, "--book", "random"]   # random openings: the training data keeps its variety
         if a.pool: cmd += ["--pool", str(a.pool)]
         if a.no_adj: cmd += ["--no-adj"]
         if a.opt: cmd += ["--optA", a.opt, "--optB", a.opt]

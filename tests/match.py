@@ -8,7 +8,11 @@ usage: match.py A B [--games 400] [--workers 2] [--seed S] [--pool N]
                     sprt:  --elo0 -3 --elo1 3 [--alpha 0.05 --beta 0.05] [--sprt penta|tri|none]
                     engines: --optA "Threads=4;Hash=64"  --optB "Threads=1"   (UCI setoption, ';'-separated)
                     data:  --save-games g.jsonl
-                    starts: --epd FILE           start positions from a FEN / EPD file (one per line, the first 4-6 fields; '#' = comment) instead of
+                    starts: --book auto          (default) tests/books/noob_3moves.epd when it is there (the development package), else
+                                                 random openings; --book random = random openings; --book FILE = an EPD book.  A book
+                                                 match plays a seeded random sample of --games / 2 positions of the book, each with both
+                                                 colours: a new seed draws a new sample.
+                            --epd FILE           start positions from a FEN / EPD file (one per line, the first 4-6 fields; '#' = comment) instead of
                                                  random openings: a seeded sample of --games / 2 of them, each played with both colours
                                                  (e.g. tests/endgames.epd; with --no-adj the games are played out)
 
@@ -17,6 +21,10 @@ observation unit is the pair (score for A: 0, 0.5, 1, 1.5, 2); tests/sprt.py com
 pair counts.  The printed "Elo +-" is a 95 % interval (1.96 standard errors).  --sprt tri uses the per-game (trinomial) numbers
 instead, which overstates the confidence (kept for comparison).  The Elo printed when an SPRT stops early is biased towards the
 accepted hypothesis; for a size estimate of an accepted change, run a fixed number of games with a new seed.
+Random openings (--book random): 8 random plies from the initial position, kept when the base engine scores them within +-90 cp at
+depth 7, cached per seed in tests/openings_<seed>.json.  Why a book is the default: the same strength gap was shown with the same
+relative error by random openings and noob_3moves, about half as well by UHO_4060_v4; the book's positions are human openings and
+better balanced (white scores 51 % against 53 %).  Two seeds are two independent samples: their results differ like two runs of one seed.
 Recommended practice: a NEW seed for every new match (default: a fresh one is drawn and printed), a test that
 passes at 40 ms should also be run at ~200 ms, arithmetic changes with Threads=1, SMP changes with several threads.
 Games end by the rules (a 3-fold repetition or the 50-move rule once it has happened on the board, not when the next move could
@@ -241,6 +249,33 @@ def epd_starts(path, pairs, seed):
     return rnd.sample(fens, pairs) if len(fens) > pairs else rnd.sample(fens, len(fens))
 
 
+BOOK = os.path.join(HERE, "books", "noob_3moves.epd")
+
+
+def book_starts(path, pairs, seed):
+    """a seeded random sample of `pairs` legal start positions of an EPD / FEN book (one position per line; all of them, shuffled, if
+    the book has fewer).  Only the positions drawn are checked, so a large book costs little."""
+    lines = []
+    with open(path) as fh:
+        for line in fh:
+            line = line.split("#", 1)[0].strip()
+            if line: lines.append(line)
+    if not lines: raise SystemExit(f"no position in the book {path}")
+    order = list(range(len(lines)))
+    random.Random(seed).shuffle(order)
+    out = []
+    for i in order:
+        t = lines[i].split()
+        fen = " ".join(t[:4] + (t[4:6] if len(t) >= 6 and t[4].isdigit() and t[5].isdigit() else ["0", "1"]))
+        try:
+            if chess.Board(fen).is_valid(): out.append(fen)
+        except ValueError:
+            pass
+        if len(out) == pairs: break
+    if not out: raise SystemExit(f"no usable position in the book {path}")
+    return out
+
+
 def get_openings(pairs, pool, seed, ref, plies, cp):
     """Opening list for one match.  Pools are cached per seed in tests/openings_<seed>.json (default plies/cp; otherwise with a suffix).
     With --pool larger than the number of pairs the match uses a random subset (also seeded) of the pool."""
@@ -276,13 +311,14 @@ if __name__ == "__main__":
     ap.add_argument("--sprt", choices=("penta", "tri", "none"), default="penta")
     ap.add_argument("--nosprt", action="store_true", help="same as --sprt none")
     ap.add_argument("--seed", type=int, default=0, help="opening seed; 0 = draw a fresh one (printed)")
-    ap.add_argument("--pool", type=int, default=0, help="size of the opening pool to draw the pairs from (default = number of pairs)")
-    ap.add_argument("--plies", type=int, default=8, help="random plies per opening")
-    ap.add_argument("--open-cp", type=int, default=90, help="reject openings with |depth-7 score| above this")
+    ap.add_argument("--pool", type=int, default=0, help="random openings: size of the opening pool to draw the pairs from (default = number of pairs)")
+    ap.add_argument("--plies", type=int, default=8, help="random openings: random plies per opening")
+    ap.add_argument("--open-cp", type=int, default=90, help="random openings: reject openings with |depth-7 score| above this")
     ap.add_argument("--optA", default="", help='UCI options for A, e.g. "Threads=4;Hash=64"')
     ap.add_argument("--optB", default="")
     ap.add_argument("--min-pairs", type=int, default=50, help="no SPRT stop before this many pairs")
     ap.add_argument("--epd", default="", help="start positions from this FEN / EPD file instead of random openings")
+    ap.add_argument("--book", default="auto", help="auto (default): tests/books/noob_3moves.epd if present, else random openings; random; or an EPD book file")
     ap.add_argument("--save-games", default="", metavar="FILE.jsonl",
                     help="append one JSON line per game: opening, adjudication, and every engine move as [fen, white-view cp, uci, is_capture, gives_check] "
                          "(for Texel tuning: keep quiet positions, i.e. is_capture=0 and gives_check=0, and drop adj=\"fail\" games)")
@@ -300,8 +336,13 @@ if __name__ == "__main__":
     for path, opts in ((a.A, a.optA), (a.B, a.optB)):                  # pre-flight: both engines must start and answer uci / isready (clean message instead of a worker traceback)
         try: Eng(path, opts).quit()
         except (RuntimeError, OSError) as ex: sys.stderr.write(f"ERROR: cannot run the engine {path!r}: {ex}\n"); sys.exit(2)
-    ops = epd_starts(a.epd, pairs, seed) if a.epd else get_openings(pairs, a.pool, seed, a.B, a.plies, a.open_cp)
-    print(f"match: {a.A} vs {a.B} | {desc} | seed {seed} | {len(ops)} pairs" + (f" from {a.epd}" if a.epd else "") + (" | no adjudication" if a.no_adj else "") + f" | sprt {a.sprt} [{a.elo0:+g},{a.elo1:+g}] alpha {a.alpha} beta {a.beta}", flush=True)
+    book = "" if a.epd or a.book == "random" else (a.book if a.book != "auto" else (BOOK if os.path.isfile(BOOK) else ""))
+    if book and not os.path.isfile(book): sys.stderr.write(f"ERROR: book {book!r} not found\n"); sys.exit(2)
+    if a.epd: ops = epd_starts(a.epd, pairs, seed)
+    elif book: ops = book_starts(book, pairs, seed)
+    else: ops = get_openings(pairs, a.pool, seed, a.B, a.plies, a.open_cp)
+    src = f" from {a.epd}" if a.epd else (f" from book {os.path.basename(book)}" if book else " | random openings")
+    print(f"match: {a.A} vs {a.B} | {desc} | seed {seed} | {len(ops)} pairs" + src + (" | no adjudication" if a.no_adj else "") + f" | sprt {a.sprt} [{a.elo0:+g},{a.elo1:+g}] alpha {a.alpha} beta {a.beta}", flush=True)
 
     lo = math.log(a.beta / (1 - a.alpha)); hi = math.log((1 - a.beta) / a.alpha)
     W = D = L = F = 0; P = [0] * 5
