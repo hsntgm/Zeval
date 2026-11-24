@@ -1733,6 +1733,28 @@ qsearch:
 %assign NEEDTTD (EVAL_TT | NMP_TTG | TTCUT_COND | (SING > 0))
 
 ; FUTM: edx = L_SEVAL + FUT_B + FUT_M * ecx   (the futility threshold for 'ecx' plies; ecx unchanged)
+; LMPLIM: ecx = depth -> eax = the late move count of the late quiet move pruning (LMP_SF).  clobbers edx.
+; Used by the pruning after the make and by the pre-make test (PREPRUNE), which must decide the same.
+%macro LMPLIM 0
+    mov eax, ecx
+    imul eax, ecx
+%if LMP_SF
+    add eax, 3                      ; (3 + d^2), halved when the eval is not improving
+    cmp dword [rbp+L_IMPR], 0
+    jne %%d
+    shr eax, 1
+%else
+    add eax, 5                      ; (d^2 + 5) +- a quarter
+    mov edx, eax
+    shr edx, 2
+    cmp dword [rbp+L_IMPR], 0
+    je %%n
+    add eax, edx
+    jmp %%d
+%%n:sub eax, edx
+%endif
+%%d:
+%endmacro
 %macro FUTM 0
 %ifdef TUNE
     mov edx, [tunetab+5*4]
@@ -2602,20 +2624,9 @@ search:
     cmp dword [rbp+L_BEST], -MATEB
     jle .nopp
     mov ecx, [rbp+L_DEPTH]
-    cmp ecx, 6
+    cmp ecx, PR_MAXD                ; the same depth limit and count as the pruning after the make
     jg .nopp
-    mov eax, ecx
-    imul eax, ecx
-    add eax, 5
-    mov edx, eax
-    shr edx, 2
-    cmp dword [rbp+L_IMPR], 0
-    je .ppln
-    add eax, edx
-    jmp .ppld
-.ppln:
-    sub eax, edx
-.ppld:
+    LMPLIM
     cmp [rbp+L_MCNT], eax
     jge .ppc                    ; MCNT + 1 > limit: the post-make test "cmp MCNT, limit; jg .prune"
 %if FUT_LMRD
@@ -2827,27 +2838,7 @@ search:
     mov ecx, [rbp+L_DEPTH]
     cmp ecx, PR_MAXD
     jg .nopr
-%if LMP_SF
-    mov eax, ecx                    ; late move count: (3 + d^2), halved when the eval is not improving
-    imul eax, ecx
-    add eax, 3
-    cmp dword [rbp+L_IMPR], 0
-    jne .lmpd
-    shr eax, 1
-%else
-    mov eax, ecx
-    imul eax, ecx
-    add eax, 5
-    mov edx, eax
-    shr edx, 2
-    cmp dword [rbp+L_IMPR], 0
-    je .lmpn
-    add eax, edx
-    jmp .lmpd
-.lmpn:
-    sub eax, edx
-%endif
-.lmpd:
+    LMPLIM                          ; late move count
     cmp [rbp+L_MCNT], eax
     jg .prune
 %if CONTHIST && CH_PRUNE
