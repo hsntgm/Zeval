@@ -56,15 +56,15 @@ Evaluation candidates keep a fixed number, `E1` .. `E21`. The next free number i
 | Principal variation search | Null-window search of the later moves, re-search on fail-high | |
 | Transposition table | Lock-free (key XOR data), 16-byte entries in 2-entry buckets, 6-bit age, depth / age replacement; also probed in quiescence | Hash 32 MB default |
 | Static eval in the TT | Stored with the entry and reused on a hit (`EVCACHE`) | |
-| Mate distance pruning | At every node | |
+| Mate distance pruning | At every node except the root | |
 | Check extension | A node in check is searched one ply deeper | |
 | Internal iterative reduction | Without a TT move: depth − 1 from depth `IIR_D` | `IIR_D` 4 (T77) |
 | Quiescence search | Captures and promotions; all evasions when in check; stand pat | |
 | Delta pruning | Skip a capture when stand pat + victim (+800 for a promotion) + margin ≤ alpha | `DELTA_M` 200 (T58) |
 | Late move pruning | Late quiet moves of non-PV nodes; move count (d² + `LMP_B`) ± a quarter, depending on improving | `LMP_B` 5 (T76), up to depth `PR_MAXD` 6 (T74) |
 | Futility pruning | eval + 110 + 90 · d ≤ alpha, on the LMR-reduced depth | 110 (T4), 90 (T5) |
-| Reverse futility pruning | eval − (85 · d − 35 · improving) ≥ beta | 85 (T0), 35 (T1), up to depth `RFP_MAXD` 6 (T75) |
-| Null move pruning | Depth ≥ 3, eval ≥ beta, non-pawn material; R = `NMP_RB` + d/4 + min(599, eval − beta)/`NMP_EDIV` | `NMP_RB` 3 (T2), `NMP_EDIV` 200 (T3) |
+| Reverse futility pruning | Non-PV, not in check: eval − (85 · d − 35 · improving) ≥ beta | 85 (T0), 35 (T1), up to depth `RFP_MAXD` 6 (T75) |
+| Null move pruning | Non-PV, not in check, depth ≥ 3, eval ≥ beta, non-pawn material; R = `NMP_RB` + d/4 + min(599, eval − beta)/`NMP_EDIV` | `NMP_RB` 3 (T2), `NMP_EDIV` 200 (T3) |
 | Late move reductions | Table R = 0.75 + log2(d) · log2(m) · 0.2135, from move `LMR_MINM` 4; modified by the LMR switches below | 750 (T71), 2135 (T72) |
 | Move ordering | TT move, good captures (MVV-LVA + capture history), 2 killers, quiet moves (butterfly history + continuation history), bad captures | |
 | Quiet history | Butterfly table [side][from][to]; bonus min(16 · d², 1600), gravity, ±16000 | 16 (T67), `HIST_BMAX` 1600 (T68) |
@@ -76,14 +76,15 @@ Evaluation candidates keep a fixed number, `E1` .. `E21`. The next free number i
 
 | Switch | Default | What it does | Status | Evidence |
 |---|---|---|---|---|
-| `RAZOR` | 1 | Razoring at depth ≤ 3: eval + `RAZOR_B` + `RAZOR_M` · d² < alpha → qsearch result | Default | accepted as part of the pruning group: +20.9 ± 36 (200, 30 ms) |
+| `RAZOR` | 1 | Razoring at depth ≤ 3: eval + `RAZOR_B` + `RAZOR_M` · d² < alpha → qsearch result | Default | +23.2 ± 29.5 alone (300, 30 ms); pruning group +20.9 ± 36 (200, 30 ms) |
+| `RAZOR_SQ` | 1 | Razor margin grows with d² (0 = linear in d) | Default | quadratic +23.2 ± 29.5, linear +33.7 ± 27.1 (300 each, 30 ms), neither significant |
 | `RFP_EXT` | 1 | Reverse futility only without a TT move or with a capture TT move; returns (661 · beta + 363 · eval) / 1024 | Default | same group |
 | `FUT_LMRD` | 1 | Futility pruning on the LMR-reduced depth | Default | same group |
 | `NMP_TTG` | 1 | No null move when the TT already proves score < beta | Default | same group |
 | `TTCUT_COND` | 1 | A TT cutoff needs cutNode == (ttScore ≥ beta) or depth > 4 | Default | same group |
 | `EVAL_TT` | 1 | Eval used by pruning = TT score when its bound allows it | Default | +56.1 ± 35 alone (200, 30 ms) |
 | `NMP_CUT` | 1 | Null move only at expected cut nodes | Default | +10.4 ± 35 alone (200, 30 ms) |
-| `SEE_PC` | 1 | Prune captures with SEE < −`SEE_CM` · d² (non-PV, depth ≤ 6) | Default | the SEE group against no SEE: +41.7 ± 31 (310) |
+| `SEE_PC` | 1 | Prune captures with SEE < −`SEE_CM` · d² (non-PV, not in check, depth ≤ `SEE_MAXD` 6) | Default | the SEE group against no SEE: +41.7 ± 31 (310, 40 ms) |
 | `SEE_QS` | 1 | Quiescence skips captures with SEE < 0 (not in check) | Default | SEE group |
 | `CH_PRUNE` | 1 | Prune late quiet moves with continuation history < −`CH_PM` · d at depth ≤ `CH_PD` | Default | part of continuation history; ablation `X6_CHNOPRUNE` |
 | `IIR_CUT` | 0 | IIR only at PV / cut nodes and depth ≥ `IIR_MIND` | Closed | −31.4 ± 33 (200, 30 ms); a full ply shallower at equal time |
@@ -100,6 +101,7 @@ Evaluation candidates keep a fixed number, `E1` .. `E21`. The next free number i
 | `LMR_HIST` | 1 | R ∓ 1 for quiet history beyond ±`LMR_HT` | Default | LMR group |
 | `LMR_TTC` | 1 | R + 1 when the TT move is a capture | Default | LMR group |
 | `LMR_RES` | 1 | After a reduced fail-high: re-search 1 ply deeper or shallower depending on the margin | Default | LMR group |
+| `LMR_MINM` | 4 | First reduced move number (3 = one move earlier) | Default (4) | 3 was not part of the accepted LMR group |
 | `CH_LMR` | 0 | LMR history step on the whole ordering score instead of the butterfly history | Closed | −14.3 |
 | `LMR_BADCAP` | 0 | Reduce bad captures like quiet moves | Closed | −5.6 ± 19.7 (500, 3+0.03) |
 | `CAP_LMR` | 0 | Reduce late captures with capture history < `CAP_LMRT` | Closed | −1.4 ± 18.0 (500, 3+0.03) |
@@ -125,7 +127,7 @@ Evaluation candidates keep a fixed number, `E1` .. `E21`. The next free number i
 | `CAPHIST` | 2 | Capture history [piece][to][victim] in capture ordering; 2 also moves the SEE good / bad split by the history | Default (2) | +9.4 ± 13.7 (1000, 3+0.03); value 1 alone −2.8 ± 14.0 |
 | `CAP_SEEPOS` | 1 | `CAPHIST` 2: good history may also keep a slightly losing capture in front | Default | part of `CAPHIST` 2 |
 | `EVALDIFF_HIST` | 0 | Update the history of the opponent's last move by the change of the static eval | Closed | −111 ± 38 (200, 30 ms) |
-| `CH_SHARED` | 0 | One continuation history table shared by all threads | Retest | −12.5 ± 14.4 (1000, Threads 2); open for 8 or more threads |
+| `CH_SHARED` | 0 | One continuation history table shared by all threads | Retest | −12.5 ± 14.4 (1000, Threads 2, 40 ms); open for 8 or more threads |
 
 **Time management** (real clock only; `go movetime`, `depth`, `nodes` and `infinite` are not affected)
 
@@ -142,8 +144,8 @@ Evaluation candidates keep a fixed number, `E1` .. `E21`. The next free number i
 
 | Switch | Default | What it does | Status | Evidence |
 |---|---|---|---|---|
-| `SMP_VOTE` | 1 | Best move by a vote over the root results of all threads | Default | +8.9 ± 10.8 (2000, Threads 2) |
-| `SMP_TMBMC` | 1 | Best-move-change count of time management averaged over all threads | Default | +14.3 ± 14.7 (1000, Threads 2) |
+| `SMP_VOTE` | 1 | Best move by a vote over the root results of all threads | Default | +8.9 ± 10.8 (2000, Threads 2, 40 ms) |
+| `SMP_TMBMC` | 1 | Best-move-change count of time management averaged over all threads | Default | +14.3 ± 14.7 (1000, Threads 2, 1+0.01) |
 | `SMP_ASPSTEP` | 2 | Helper k starts with aspiration half-width `ASP_W` + (k mod 8) · 2 | Default | thread diversity |
 | `SMP_POOL` | 1 | Persistent helper threads | Speed | same search |
 | `PV_FINAL` | 1 | Extra info line when the root line changed after the last one | Default | output only, no effect on the search |
@@ -155,13 +157,14 @@ Evaluation candidates keep a fixed number, `E1` .. `E21`. The next free number i
 | `EV_R50` | 0 | Eval fades towards 0 with the fifty-move counter: eval · (1 − halfmove / `EV_R50C`) (E16) | Retest | screening only: −5.2 ± 39 (200, 20 ms) |
 | `EV_CORR` | 0 | Pawn-structure correction history added to the eval (E17) | Retest | −13.2 ± 16.4 (1000, 20 ms); the table starts empty each game and short searches fill it poorly |
 
-**Implementation switches** (all Speed: same tree, no Elo test)
+**Implementation switches** (Speed: the same tree, or for `BB` another move order with the same rules)
 
 | Switch | Default | What it does |
 |---|---|---|
-| `BB` | 1 | Magic bitboards mirror the 0x88 board (0 = pure 0x88 engine, another move order) |
+| `NUNITS` | 32 | Build variable of `build/build.sh`: number of thread units, the maximum of the UCI option Threads (1 = single-thread build) |
+| `BB` | 1 | Magic bitboards mirror the 0x88 board (0 = pure 0x88 engine, another move order); against the pure 0x88 engine +228 ± 59 (118, 40 ms) |
 | `PREPRUNE` | 1 | Legality and check test of quiet moves from bitboards before making them |
-| `SIMDPICK` | 5 | SIMD selection of the best remaining move (SSE4.1 / SSE2 chosen at start-up) |
+| `SIMDPICK` | 5 | SIMD selection of the best remaining move (SSE4.1 / SSE2 chosen at start-up); same tree, +32.5 ± 13.1 (1414, 20 ms) from speed alone |
 | `INCHKHINT` | 1 | The parent passes the in-check state to the child |
 | `TTPREFETCH` | 1 | Prefetch of the TT bucket after a move |
 | `TT_HUGE` | 1 | Transparent huge pages for the TT (Linux) |
@@ -204,6 +207,19 @@ Evaluation candidates keep a fixed number, `E1` .. `E21`. The next free number i
 | `EV_R50C` | 200 | 30 | `EV_R50` |
 | `CORR_BITS` | 14 | – | `EV_CORR` table size |
 
+**Fixed limits** (not switches):
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `MAXPLY` | 128 | maximum search ply |
+| `MAXGAME` | 4096 | game history in plies (repetition detection) |
+| `HASHDEF` / `HASHMAX` | 32 / 32768 | default and maximum Hash in MB |
+| `MOVEOH` | 12 | default Move Overhead in ms |
+| `MATE` / `MATEB` | 30000 / 29800 | mate score and the bound above which a score is a mate |
+| `EV_KNOWNWIN` | 10000 | base score of a known win of the special endgame evaluation |
+| `EV_N` | 420 | entries of the evaluation term table `evp` |
+| `CORR_LIMIT` / `CORR_BMAX` | 1024 / 256 | `EV_CORR` entry bound (128 cp) and update bound |
+
 **Measured parameter changes:**
 
 | Change | Result | Status |
@@ -240,7 +256,7 @@ e       = trunc((64 · mg · ph + sf · eg · (24 − ph)) / 1536)              
 eval    = ±e + TEMPO                                                       (special endgames bypass this)
 ```
 
-The evaluation is linear in its parameters, so `tuner/` tunes every table. `tuner/check_eval.py` proves that the Python model
+Every term with parameters is linear in them, so `tuner/` tunes every table; the scale factor, the special endgames and the switches marked as non-linear below are outside that model. `tuner/check_eval.py` proves that the Python model
 matches the engine bit for bit. Material, PST, the `evp` term table, the bishop pair (`BP_MG` / `BP_EG` 17 / 68) and `TEMPO` (18) are tuned values.
 
 **Always on with `EVAL_FULL` 1** (`E0_PSTEVAL` = material + PST + bishop pair + tempo only):
@@ -260,9 +276,9 @@ matches the engine bit for bit. Material, PST, the `evp` term table, the bishop 
 
 | ID | Switch | Concept | Default | Status | Evidence |
 |---|---|---|---|---|---|
-| E1 | `EV_ENDG` | Specific endgames: bare-king mating (KQK, KRK, KBNK), KPK bitbase, insufficient material and wrong-bishop draws | 1 | Default | with E2 and a joint retune: endgame set +14.3 ± 10.7 (534), normal openings +29.3 ± 16.6 (1000) |
+| E1 | `EV_ENDG` | Specific endgames: bare-king mating (KQK, KRK, KBNK), KPK bitbase, insufficient material and wrong-bishop draws | 1 | Default | with E2, the second rule sets and a joint retune: endgame set +14.3 ± 10.7 (534), normal openings +29.3 ± 16.6 (1000); alone with the old tables +0.7 ± 15.9 (970, 20 ms) |
 | – | `EV_ENDG2` | Special values for pawnless KQ-KR, KR-KB, KR-KN, fitted to tablebase verdicts | = `EV_ENDG` | Default | same test; ablation `X4_NOENDG2` |
-| E2 | `EV_SCALE` | Endgame scale factor on the eg part: drawish material, opposite-coloured bishops, rook endings on one flank, lone queen, few pawns | 1 | Default | same test; ablation `X2_NOSCALE` |
+| E2 | `EV_SCALE` | Endgame scale factor on the eg part: drawish material, opposite-coloured bishops, rook endings on one flank, lone queen, few pawns | 1 | Default | same test; with the first rule set alone +1.0 ± 15.5 (1000, 20 ms); ablation `X2_NOSCALE` |
 | – | `EV_SCALE2` | Second rule set with fitted constants and class rules for drawn single-pawn endings | = `EV_SCALE` | Default | ablation `X3_SCALEV1` |
 | – | `EV_SCALE6` | Rule 6 of the first rule set (few pawns) | 1 | Diagnostic | acts only with `EV_SCALE2` 0 |
 | E4 | `EV_LAZY` | Lazy evaluation: return material + PST beyond `EV_LAZYT` (1000), skip the second pass beyond `EV_LAZYT2` (700) | 0 | Retest | screening only: −15.6 ± 34 (200, 20 ms, untuned tables) |
@@ -291,13 +307,16 @@ The other numbers are not evaluation switches:
 
 | Switch | Default | What it does | Status |
 |---|---|---|---|
-| `EVAL_FULL` | 1 | Full evaluation (0 = material + PST, forced with `BB` 0) | Default |
+| `EVAL_FULL` | 1 | Full evaluation (0 = material + PST, forced with `BB` 0); against material + PST +119.1 ± 29.2 (400, 40 ms) | Default |
 | `HWPOPCNT` | 2 | POPCNT or plain code chosen at start-up (0 plain, 1 POPCNT only) | Speed (`S1_SWPOPCNT`) |
 | `EVCACHE` | 1 | Static eval stored in the TT entry | Speed (`S0_NOEVCACHE`) |
-| `EV_PHASH` | 0 | Pawn cache per thread (2^`EV_PHBITS` entries) | Speed, not yet measured on the target machine (`S2_PHASH`) |
+| `EV_PHASH` | 0 | Pawn cache per thread (2^`EV_PHBITS` = 2^13 entries, 512 KiB); same values | Speed, not yet measured on the target machine (`S2_PHASH`) |
 | `EV_ATTMAPS` | auto | Attack maps of both sides and the second evaluation pass; forced on by every second-pass term | – |
 | `EV_TUNEMODE` | 0 | Turns off every non-linear part (lazy, initiative, grain) for tuning builds | Diagnostic |
 | `EV_OSCALE` | 1024 | Scales the normal evaluation by N/1024 (test builds) | Diagnostic |
+
+The console command `evalcfg` prints the evaluation switches of a build as a bit mask (`EV_CFG` in `src/eval.asm`; the bit
+order is `FLAG_BITS` in `tuner/model.py`).
 
 ### 2.4 Constants outside the linear model
 
