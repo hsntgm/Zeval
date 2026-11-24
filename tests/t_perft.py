@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Perft cross-check: the engine's own console `perft N` (after the `verify` self-check) against python-chess, move by move (divide), on 400 positions:
 8 fixed perft positions at depth 3 + 392 random-playout positions at depth 2.  Catches any move-generation / make-unmake bug (castling, e.p., promotion, pins).
   ENGINE=./zeval python3 tests/t_perft.py          (Windows: set ENGINE=zeval.exe)        ~ 25 s.  Needs python-chess.
