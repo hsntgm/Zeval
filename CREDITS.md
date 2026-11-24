@@ -31,6 +31,7 @@ This engine was shaped by what I learned from many open-source engines. Here I n
 
 - **Stockfish** and its developers: ideas for time management and Lazy SMP thread selection, and the reference for endgame knowledge and tactical comparisons.
 - **Ethereal** (Andrew Grant) and **Stash** (Gediminas Masaitis): positions from their games were used as labelled data while tuning the evaluation.
+- **Andrew Grant**'s paper *Evaluation & Tuning in Chess Engines* (2020): the method behind `tuner/resolve.py`, which builds training positions from the engine's own games by playing out the principal variation of a fixed-depth search.
 - **Zurichess** (Alexandru Mosoi): the quiet-labelled position set used as tuning data.
 - **Arasan** (Jon Dart): test positions.
 
@@ -83,6 +84,7 @@ Bu motor, pek çok açık kaynak motordan öğrendiklerimle şekillendi. Burada,
 
 - **Stockfish** ve geliştiricileri: zaman yönetimi ile Lazy SMP'de thread seçimi için fikir kaynağı; oyun sonu bilgisi ve taktik karşılaştırmaları için başvuru noktası.
 - **Ethereal** (Andrew Grant) ve **Stash** (Gediminas Masaitis): oyunlarından alınan pozisyonlar, eval'i ayarlarken etiketli veri olarak kullanıldı.
+- **Andrew Grant**'ın *Evaluation & Tuning in Chess Engines* (2020) makalesi: `tuner/resolve.py`'nin yöntemi; eğitim pozisyonları, motorun kendi oyunlarından sabit derinlikli bir aramanın ana varyantı oynanarak elde ediliyor.
 - **Zurichess** (Alexandru Mosoi): parametre ayarında kullanılan, "sessiz" (quiet) olarak etiketlenmiş pozisyon kümesi.
 - **Arasan** (Jon Dart): test pozisyonları.
 
