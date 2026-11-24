@@ -629,7 +629,7 @@ smp_stop:
 ;     otherwise:  t replaces it when t has a winning mate score, or when t's score is not a losing mate score and vote(t) > vote(best), or the votes
 ;                 are equal and t's root line is longer.  (A losing mate score never replaces a normal score: at the root it can be a fail-high
 ;                 bound.)
-; When a helper wins, its rootbest / rootscore / root line are copied into unit 0 (bestmove, ponder move and the last info line agree), and
+; When a helper wins, its rootbest / rootscore / root line / seldepth are copied into unit 0 (bestmove, ponder move and the last info line agree), and
 ; tm_prev takes its score.  Keeps rbx, rbp, r12 .. r15.  Clears smp_last.
 smp_vote:
     mov ecx, [smp_last]
@@ -744,6 +744,8 @@ smp_vote:
     mov [tm_prev], eax              ; the previous score of the next search (time management) is the score that was played
 %endif
     mov [smp_run], r15d             ; the info line counts the nodes of every thread of this search (the helpers have ended)
+    mov eax, [rbp + seldep - tlb_0]
+    mov [seldep], eax               ; depth, seldepth, score and line of the info line all come from the chosen thread
     mov edi, [rbp + itdepth - tlb_0]
     mov esi, [rootscore]
     call print_info

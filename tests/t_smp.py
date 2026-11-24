@@ -16,7 +16,8 @@ thread twice, 250 ms apart, and fails when the threads (except the main thread w
 times are counted in clock ticks (10 ms on Linux, 15.6 ms on Windows), hence a sum and a threshold instead of "any increase"; a helper that did not
 stop, or waiting threads that spin, use far more (measured: a pool whose 31 waiting threads spin uses the whole machine).
 
-  1. UCI:       option Threads is announced, default 1, max 32; values are clamped; Threads=1 gives the same node count as the single-thread engine in a fixed-depth search
+  1. UCI:       option Threads is announced, default 1, max 32; values are clamped; Threads=1 after a 32-thread search gives the node counts of a fresh
+                process (fixed-depth searches)
   2. threads:   thread counts during / after a search by the rules above (no orphan), for 1, 2, 4, 8, 32 threads; no thread busy after the bestmove
   3. moves:     the bestmove is legal on 24 different positions with Threads = 4 and 32, short and long searches
   4. stop:      go infinite with 8 threads, stop -> bestmove within 150 ms, thread count by the rules, no thread busy; quit during a search -> exit code 0
@@ -25,9 +26,11 @@ stop, or waiting threads that spin, use far more (measured: a pool whose 31 wait
                 uses CPU), the stop still answers
   6. churn:     600 very short searches (go depth 1, go movetime 5, go nodes 100) with Threads = 32 / 8: no hang, no crash, thread count by the rules,
                 no thread busy afterwards, every move legal
-  7. changes:   Threads 8 -> 1 -> 4 -> 2 -> 1 between searches; ucinewgame / Clear Hash with threads; Threads=1 afterwards == fresh Threads=1 node counts
+  7. changes:   Threads 8 -> 1 -> 4 -> 2 -> 1 between searches; ucinewgame / Clear Hash with threads; Threads=1 afterwards == the node counts of a fresh process
   8. nodes:     go nodes N with Threads = 4: stops (the limit is a limit of the total, enforced by the main thread)
   9. timing:    movetime 200 with 8 threads returns within 200 ms + 120 ms
+ 10. info:      the node count of the info lines never goes down within a search (80 timed searches with 4 threads: the line printed after the
+                threads have stopped counts all of them, like the lines before it)
 """
 import os, re, subprocess, sys, time
 import chess, shlex
@@ -158,7 +161,9 @@ def main():
     def nodes_at(pos, d):
         o, _ = e.go(pos, f"go depth {d}")
         return [int(re.search(r"nodes (\d+)", l)[1]) for l in o if l.startswith("info depth")][-1]
-    e.send("ucinewgame"); e.ready(); ref = [nodes_at("position fen " + f, 7) for f in FENS[:6]]
+    e.send("ucinewgame"); e.ready(); after32 = [nodes_at("position fen " + f, 7) for f in FENS[:6]]
+    f0 = Eng(); f0.send("ucinewgame"); f0.ready(); ref = [nodes_at_e(f0, "position fen " + f, 7) for f in FENS[:6]]; f0.quit()
+    check(after32 == ref, "1. Threads=1 after a 32-thread search gives the node counts of a fresh process", (ref, after32))
     # ---- 2. thread counts
     global POOL
     print("     thread counts / CPU time: %s" % ("/proc" if PROC else "psutil" if psutil is not None else "NOT AVAILABLE (pip install psutil): count and idle checks skipped"))
@@ -250,6 +255,14 @@ def main():
     for f in FENS[:6]:
         out, dt = e.go("position fen " + f, "go movetime 200"); worst = max(worst, dt)
     check(worst < 0.32, f"9. movetime 200 with 8 threads: worst {worst*1000:.0f} ms (< 320 ms)")
+    # ---- 10. node counts of the info lines
+    e.send("setoption name Threads value 4"); e.ready(); drops = []
+    for i in range(80):
+        f = FENS[i % 8]
+        e.send("ucinewgame"); out, dt = e.go("position fen " + f, "go movetime %d" % (30, 60, 120, 250)[i % 4])
+        n = [int(re.search(r" nodes (\d+)", l)[1]) for l in out if l.startswith("info depth") and " nodes " in l]
+        if any(b < a for a, b in zip(n, n[1:])): drops.append((f, n[-3:]))
+    check(not drops, f"10. info lines with 4 threads: the node count never goes down within a search ({len(drops)} of 80 searches did)", drops[:2])
     rc = e.quit(); check(rc == 0, f"exit code {rc}")
     print("ALL PASSED" if not bad else f"{bad} FAILED"); sys.exit(1 if bad else 0)
 

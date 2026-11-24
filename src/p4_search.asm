@@ -3875,17 +3875,22 @@ print_info:
     neg rax
     call ob_num
 .rest:
-    OBS s_nodes, 7
-    NODES_ALL                   ; total over all threads (Threads > 1)
-    call ob_num
+    NODES_ALL                   ; total over all threads (Threads > 1), read once: nodes and nps of the line agree
+    mov rbx, rax                ; (rbx: the depth is printed)
     call gettime_ms
     sub rax, [starttime]
     mov r12, rax
+    OBS s_nodes, 7
+    mov rax, rbx
+    call ob_num
     OBS s_nps, 5
-    NODES_ALL
+    mov rax, rbx
     imul rax, 1000
-    lea rcx, [r12+1]
-    xor edx, edx
+    mov rcx, r12                ; nps = nodes * 1000 / time, time at least 1 ms
+    test rcx, rcx
+    jnz .tm
+    inc ecx
+.tm:xor edx, edx
     div rcx
     call ob_num
     OBS s_hashfull, 10
@@ -4320,6 +4325,10 @@ think:
 %if HELPER == 0
 %if SMP && UNIT == 0
     call smp_stop               ; EVERY way out of think passes here (or through .waitinf above): no helper thread may outlive the search
+    mov r12d, [smp_last]        ; the helpers of this search (smp_vote clears smp_last): the node count of a final info line below
+%if SMP_VOTE == 0
+    mov dword [smp_last], 0     ; (no vote that clears it: a later single-thread search must not count these helpers)
+%endif
 %endif
 %if SMP && UNIT == 0 && SMP_VOTE
     call smp_vote               ; the result of the search from all its threads (may replace rootbest / rootscore / rpv)
@@ -4332,7 +4341,13 @@ think:
     je .pvf
     mov edi, [itdepth]
     mov esi, [rootscore]
+%if SMP && UNIT == 0
+    mov [smp_run], r12d         ; nodes / nps of all threads of the search, as in every other info line (the helpers have ended)
+%endif
     call print_info
+%if SMP && UNIT == 0
+    mov dword [smp_run], 0
+%endif
 .pvf:
 %endif
     mov eax, [rootbest]
