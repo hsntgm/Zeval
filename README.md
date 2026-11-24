@@ -121,6 +121,8 @@ Search and evaluation features are build-time switches, documented in the header
 NASMFLAGS="-DSING=0" sh build/build.sh          # for example: without the singular extension
 ```
 
+[docs/README.md](docs/README.md) maps every switch and tunable constant with its default value and its test status.
+
 ### Usage
 
 Zeval speaks the Universal Chess Interface and runs in any UCI GUI or tournament manager (Arena, Cute Chess, fastchess, cutechess-cli, Lucas Chess, python-chess and others).
@@ -297,6 +299,8 @@ Arama ve değerlendirme özellikleri derleme zamanında açılıp kapatılan ana
 ```sh
 NASMFLAGS="-DSING=0" sh build/build.sh          # örneğin: singular uzatma olmadan
 ```
+
+Tüm anahtarların ve ayarlanabilir sabitlerin varsayılan değerleri ve test durumları [docs/README.md](docs/README.md) dosyasındadır.
 
 ### Kullanım
 
