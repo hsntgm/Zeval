@@ -11,8 +11,10 @@ own copy of the code with its own state block.  The helper flavour of think() (n
 thread did:
   1. for every position of tests/golden_depth8.json (60), depth 7: the nodes, root score, best move and depth of the units 0, 1 and 2 are identical;
   2. the main thread's node count is identical to a Threads=1 run of the same build (the helper threads do not disturb the main thread);
-  3. self-test: a helper flavour that ends one iteration early (jg -> jge on the depth test) and one with another aspiration window are both
-     caught by check 1.
+  3. 4 positions WITH game history (repetitions): the helper units see the history (the main thread pushes ustack to them) and agree with the
+     main thread;
+  4. self-test: a helper flavour that ends one iteration early (jg -> jge on the depth test) and one with another aspiration window are both
+     caught by check 1; helpers that do not get the game history (ustack copy removed) are caught by check 3.
 Whether the threads share the table CORRECTLY (lock-free XOR scheme) is tested by tests/t_ttrace.py; what a helper may write is audited by tests/t_smp_audit.py.
 
 usage: python3 tests/t_smp_equiv.py [--depth 7] [--positions 60] [--threads 3]       exit code 0 = everything passed

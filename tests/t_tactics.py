@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tactics smoke test over UCI (python-chess): 11 small positions with a known best move (mate in 1 / 2, hanging queen, promotion, ...) at 600 ms each.
+"""Tactics smoke test over UCI (python-chess): 12 small positions with a known best move (mate in 1 / 2, hanging queen, promotion, ...) at 600 ms each.
 This is the SMALL one (seconds).  The big tactical suite is tactics.sh / tactics/ (1,146 positions); it is a diagnostic, this one is a quick tripwire.
   ENGINE=./zeval python3 tests/t_tactics.py          (Windows: set ENGINE=zeval.exe)          needs python-chess
 Exit code: 0 = every position with an expected move was solved and every move was legal,

@@ -24,8 +24,8 @@ HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 args = sys.argv[1:]
 N = int(args[args.index("--units") + 1]) if "--units" in args else 32
 BB = args[args.index("--bb") + 1] if "--bb" in args else "1"
-GOLD = "golden_depth8.json" if BB == "1" else "golden_depth8_r24.json"
-BBFLAGS = [f"-DBB={BB}"] + ([] if BB == "1" else ["-DDEV8SEARCH"])      # golden_depth8_r24.json = the 0x88 engine with the previous default search
+GOLD = "golden_depth8.json" if BB == "1" else "golden_depth8_0x88.json"
+BBFLAGS = [f"-DBB={BB}"] + ([] if BB == "1" else ["-DDEV8SEARCH"])      # golden_depth8_0x88.json = the 0x88 engine with the DEV8SEARCH search
 
 TL = "board stm castle epsq halfm ksq hashk mgsc egsc phase gply cnt bbp bbc ply seldep itdepth nodes rootbest rootscore rpvlen rpv sevals pvlen killers histtab pvtab ustack".split()
 if BB == "0": TL = [t for t in TL if t not in ("bbp", "bbc")]

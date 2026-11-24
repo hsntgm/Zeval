@@ -285,7 +285,7 @@ def main():
     ap.add_argument("--norm-scale", default="", metavar="asm|CP",
                     help="after tuning, rescale the whole eval by one factor so that mean|eval| over the training positions equals that of the START tables ('asm') or a number "
                          "of cp.  The search margins (RFP / futility / razor / NMP / delta, SPSA T0..T19, T58) are tuned for one eval scale; a tuned eval that is larger or smaller "
-                         "costs Elo by itself (measured: about -30 Elo for +-10 %%), which hides the gain of the tuning in an SPRT")
+                         "costs Elo by itself, which hides the gain of the tuning in an SPRT")
     ap.add_argument("--norm-tol", type=float, default=0.005, help="--norm-scale is skipped when the factor is within this distance of 1 (default 0.005 = 0.5 %%)")
     a = ap.parse_args()
     t_start = time.time()
@@ -427,7 +427,7 @@ def main():
                 log(f"  {pname(i):16s} {v0[i]:7.1f} -> {vr[i]:7.1f}  | {bs[:, c].mean():7.1f} +- {sd:5.1f}  [{lo:.1f}, {hi:.1f}]   change = {z:+.1f} sd")
             log("  (a change below ~2 sd is not distinguishable from noise: generate more games before trusting it)")
 
-    out = {"format": "asmchess-tuner-1", "K": K, "prior": P, "optimizer": a.optimizer, "epochs_best": ep, "positions_train": train.n, "positions_val": val.n,
+    out = {"format": "zeval-tuner-1", "K": K, "prior": P, "optimizer": a.optimizer, "epochs_best": ep, "positions_train": train.n, "positions_val": val.n,
            "free": a.free, "lam": a.lam, "from_zero": bool(a.from_zero), "data": os.path.basename(a.data),
            "mean_abs_eval": {"asm": mae_asm, "tuned": mae_new},
            "scale": {"norm_scale": a.norm_scale, "applied": bool(scale_applied), "factor_applied": scale_ratio, "mean_abs_eval_tuned_float": cur_abs,

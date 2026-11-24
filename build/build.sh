@@ -2,7 +2,7 @@
 # Build zeval.exe (Windows x64) and the Linux ELF from a Linux box.
 # needs: nasm, lld-link (LLVM lld), llvm-dlltool, llvm-rc   (apt install nasm lld llvm); llvm-rc runs with -no-preprocess (zeval.rc has no directives, no clang needed)
 set -e
-# default = magic bitboard build (src/p2b_bb.asm);  NASMFLAGS="-DBB=0" sh build/build.sh  -> the pure 0x88 engine (Release 2.4 move generator)
+# default = magic bitboard build (src/p2b_bb.asm);  NASMFLAGS="-DBB=0" sh build/build.sh  -> the pure 0x88 engine (0x88 move generator)
 # NUNITS = number of thread units (default 32 = the maximum number of search threads): the engine is assembled
 # once per unit (nasm -DUNIT=k) and the objects are linked together; unit 0 is the whole engine, units 1.. only the search code and
 # their own state block (src/p1_data.asm).  NUNITS=1 gives the single-thread engine.

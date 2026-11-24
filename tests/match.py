@@ -300,7 +300,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="see the module docstring")
     ap.add_argument("A"); ap.add_argument("B")
     ap.add_argument("--games", type=int, default=400, help="maximum number of games (2 per opening)")
-    ap.add_argument("--no-adj", action="store_true", help="no win / draw adjudication (games end by the rules or the 400-move cap): labels for Texel tuning then do not come from the engine's own score")
+    ap.add_argument("--no-adj", action="store_true", help="no win / draw adjudication (games end by the rules or the 400-ply cap): labels for Texel tuning then do not come from the engine's own score")
     ap.add_argument("--no-draw-adj", action="store_true", help="no draw adjudication (win adjudication kept): drawn labels then come from the rules only")
     ap.add_argument("--movetime", type=int, default=40)
     ap.add_argument("--nodes", type=int, default=0, help="fixed nodes per move (overrides --movetime)")

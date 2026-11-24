@@ -9,7 +9,7 @@
   ab  ENGINE_A ENGINE_B      alternating A/B on one machine (suite by suite, so drift hits both alike) + analysis A - B   [--profile smoke|standard|full]
   analyze TAG NAME_A NAME_B  re-run the analysis of two finished result files (results/NAME_TAG.jsonl)
   variant NAME [flags]       build a Linux variant of the engine (default + extra nasm flags) into tactics/bin/zeval_NAME   (Linux, needs nasm)
-  baseline                   print the recorded analysis (C6 and DEF = two earlier builds of this engine, Stockfish 16 as reference)
+  baseline                   print the recorded analysis (C6 and DEF = two recorded builds of this engine, Stockfish 16 as reference)
   list                       suites and finished result files
 
 Results go to tactics/results/<name>_<ms>ms.jsonl (resumable: run the same command again after Ctrl+C).  The default name is <binary>-<first 6 hex of its SHA-256>, so a rebuilt
@@ -138,7 +138,7 @@ def cmd_profile(a):
     print(f"\ndone in {(time.time() - t0) / 60:.1f} min -> tactics/results/{label}_{movetime}ms.jsonl")
     if movetime == 1000 and os.path.exists(os.path.join(REFDIR, "C6_1000ms.jsonl")):
         if not py_has("chess"): print("(python-chess missing: pip install chess -> then the comparison with the recorded baseline is printed; ./tactics.sh analyze 1000ms %s C6 would also work)" % label); return
-        print("\n== comparison with the RECORDED baseline (C6 = the current default engine; recorded on ANOTHER machine, 1 core, ONE run: informational only,\n"
+        print("\n== comparison with the RECORDED baseline (C6 = a recorded build of this engine, not the current default; recorded on ANOTHER machine, 1 core, ONE run: informational only,\n"
               "   for a real A/B run both builds on THIS machine: ./tactics.sh ab ENGINE_A ENGINE_B)\n")
         analyze("1000ms", label, "C6", dir_b=REFDIR)
     else:
@@ -177,7 +177,7 @@ def cmd_variant(a):
 
 def cmd_baseline(a):
     print(open(os.path.join(REFDIR, "analysis_1000ms.txt"), encoding="utf-8").read())
-    print("Recorded: C6 = an earlier build of this engine (binary SHA-256 634a40bf..., evaluation material + PST only), 1000 ms / position, Threads=1, Hash=64, one core, ONE run.")
+    print("Recorded: C6 = a build of this engine with the material + PST evaluation (binary SHA-256 634a40bf...), 1000 ms / position, Threads=1, Hash=64, one core, ONE run.")
 
 
 def cmd_list(a):

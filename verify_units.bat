@@ -3,7 +3,7 @@ rem Thread-unit check on a real Windows machine.  Needs Python 3 on PATH, nothin
 rem It uses the two prebuilt TEST builds in testbuild\ (they are NOT the release; built with build\build.sh, NUNITS=32):
 rem    zeval_ut.exe       -DUNITTEST         32 units; options Unit / Conc / ConcOnly; transposition table on
 rem    zeval_ut_nott.exe  -DUNITTEST -DNOTT  the same with the transposition table off (searches stay deterministic when several run at once)
-rem    zeval_ut_plain.exe -DUNITTEST -DTTPLAIN  the former non-lock-free table scheme (only for the comparison in step 6: it may show corrupt entries, the release never has it)
+rem    zeval_ut_plain.exe -DUNITTEST -DTTPLAIN  the non-lock-free table scheme (only for the comparison in step 6: it may show corrupt entries, the release never has it)
 rem and the release zeval.exe.  What it exercises: CreateThread / WaitForSingleObject of the unit hook
 rem (os_thread_run, conc_spawn, conc_join in src\p7_units.asm) and 32 searches running at the same time.
 rem usage:  verify_units.bat            (to keep the output:  verify_units.bat > verify_units_result.txt 2>&1)

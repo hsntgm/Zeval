@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Robustness regression tests for issues fixed in earlier releases: commands queued behind a running search are not lost, go infinite waits
+"""Robustness regression tests: commands queued behind a running search are not lost, go infinite waits
 for stop, a 1160-ply position line is not cut, console-mode repetition draw / go infinite, malformed FEN does not crash.   Seconds.   No python-chess needed.
   ENGINE=./zeval python3 tests/t_robust.py          (Windows: set ENGINE=zeval.exe)
 Exit code 0 = ALL PASSED, 1 = a check failed (a hung engine is killed and counts as a failed check)."""

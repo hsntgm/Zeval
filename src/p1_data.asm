@@ -170,7 +170,7 @@ section .bss  align=64
 %endif
 
 ; ---- BB 1 (default): magic bitboards mirror the 0x88 mailbox; attacked(), gen and see_ge use them (p2b_bb.asm).  0 = the pure 0x88 engine
-; ---- (another move order: other fixed-depth node counts; with -DDEV8SEARCH the reference tests/golden_depth8_r24.json).
+; ---- (another move order: other fixed-depth node counts; with -DDEV8SEARCH the reference tests/golden_depth8_0x88.json).
 %ifndef BB
 %define BB 1
 %endif
@@ -206,7 +206,7 @@ section .bss  align=64
 ; ---- tree); cutNode is carried through the search.
 ; ---- On by default, a group of 16 switches: TM_STAB TM_FALL TM_INST TM_EFFORT RAZOR RFP_EXT FUT_LMRD NMP_TTG TTCUT_COND LMR_CUT
 ; ----   LMR_IMPR(=1) LMR_HIST LMR_TTC LMR_RES EVAL_TT NMP_CUT.  -DDEV8SEARCH sets each of them that is not given on the command line to 0, and
-; ----   CONTHIST and SING too: the reference search of tests/golden_depth8_dev10_dev8search.json.
+; ----   CONTHIST and SING too: the reference search of tests/golden_depth8_dev8search.json.
 ; ---- Off by default: IIR_CUT, EVALDIFF_HIST, NMP_VER (acts only at depth >= 14), LMR_BADCAP, LMR_MINM, LMR_IMPR=2, CHK_EXT, SEE_PQ.
 ; ---- Description of the switches:
 ; ----   TTPREFETCH 1  domove / domove_null prefetch the transposition table bucket of the NEW hash key (same address arithmetic as tt_probe)

@@ -11,7 +11,7 @@ cd /d "%~dp0.."
 where nasm >nul 2>nul || (echo ERROR: nasm.exe not found on PATH & exit /b 1)
 where link >nul 2>nul || (echo ERROR: link.exe not found - open an "x64 Native Tools Command Prompt" & exit /b 1)
 if not exist dist mkdir dist
-rem same part order as build.sh (p2b_bb_data.inc + p2b_bb.asm = magic bitboards, BB=1 default).  Optional: set NASMFLAGS=-DBB=0 for the pure 0x88 engine (Release 2.4 move generator)
+rem same part order as build.sh (p2b_bb_data.inc + p2b_bb.asm = magic bitboards, BB=1 default).  Optional: set NASMFLAGS=-DBB=0 for the pure 0x88 engine (0x88 move generator)
 if "%NUNITS%"=="" set NUNITS=32
 copy /b src\p1_data.asm+src\eval.asm+src\p2_core.asm+src\p2b_bb_data.inc+src\p2b_bb.asm+src\p3_cmd.asm+src\p4_search.asm+src\p5_main.asm+src\p6_win.asm+src\p7_units.asm zeval.asm >nul || exit /b 1
 rem one object per thread unit: unit 0 = whole engine, units 1.. = search code + own state block

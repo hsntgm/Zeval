@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Release 2.3 output checks: full PV, 'ponder', seldepth / hashfull / tbhits / currmove.   Needs python-chess.
+"""UCI output checks: full PV, 'ponder', seldepth / hashfull / tbhits / currmove.   Needs python-chess.
 
   ENGINE=./zeval python3 tests/t_pv.py            (Windows: set ENGINE=zeval.exe)
 Checks (exit code 0 = all passed):
