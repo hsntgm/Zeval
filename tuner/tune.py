@@ -285,7 +285,7 @@ def main():
     ap.add_argument("--norm-scale", default="", metavar="asm|CP",
                     help="after tuning, rescale the whole eval by one factor so that mean|eval| over the training positions equals that of the START tables ('asm') or a number "
                          "of cp.  The search margins (RFP / futility / razor / NMP / delta, SPSA T0..T19, T58) are tuned for one eval scale; a tuned eval that is larger or smaller "
-                         "costs Elo by itself (measured: about -30 Elo for +-10 %), which hides the gain of the tuning in an SPRT")
+                         "costs Elo by itself (measured: about -30 Elo for +-10 %%), which hides the gain of the tuning in an SPRT")
     ap.add_argument("--norm-tol", type=float, default=0.005, help="--norm-scale is skipped when the factor is within this distance of 1 (default 0.005 = 0.5 %%)")
     a = ap.parse_args()
     t_start = time.time()

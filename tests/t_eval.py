@@ -185,7 +185,7 @@ if __name__ == "__main__":
     ap.add_argument("--engine", default="", help="default: environment variable ENGINE, else ./zeval (zeval.exe on Windows), like the other tests")
     ap.add_argument("--n", type=int, default=1500)
     ap.add_argument("--seed", type=int, default=7)
-    ap.add_argument("--tempo", type=int, default=None, help=f"tempo value the tempo test expects (default: %define TEMPO of src/eval.asm = {TEMPO})")
+    ap.add_argument("--tempo", type=int, default=None, help=f"tempo value the tempo test expects (default: %%define TEMPO of src/eval.asm = {TEMPO})")
     ap.add_argument("--selftest", action="store_true", help="also check that deliberately broken evals are caught (needs nasm, ld)")
     a = ap.parse_args()
     if a.tempo is not None: TEMPO = a.tempo
