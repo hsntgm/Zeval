@@ -42,7 +42,10 @@ tune_def:     dd 85, 35, NMP_RB, NMP_EDIV, 110, 90, LMR_CUTP, LMR_HT, RAZOR_B, R
               ; the table is rebuilt when either is set), 73 first aspiration half-width (ASP_W), 74 depth limit of the late quiet move pruning
               ; (PR_MAXD), 75 depth limit of reverse futility pruning (RFP_MAXD), 76 constant of the late move count (LMP_B)
               dd SE_M, SE_TTD, SEE_CM, CH_BA, CH_BMAX, 16, HIST_BMAX, CAP_BA, CAP_BMAX, 750, 2135, ASP_W, PR_MAXD, RFP_MAXD, LMP_B
-              times TUNEN-77 dd 0
+              ; 77 IIR depth (IIR_D), 78, 79 capture ordering: SEE limit CAP_SEEB - (captab >> CAP_SEESH), 80 .. 84 time curve TMC_F0,
+              ; TMC_F1, TMC_PM, TMC_H, TMC_CAP (they act with a clock only, not with movetime)
+              dd IIR_D, CAP_SEEB, CAP_SEESH, TMC_F0, TMC_F1, TMC_PM, TMC_H, TMC_CAP
+              times TUNEN-85 dd 0
 %endif
 c_quit:       db "quit",0
 c_q:          db "q",0
@@ -681,6 +684,56 @@ s_tmcdbg_l  equ $-s_tmcdbg
 %if TM_CURVE
 ; tm_curve (TM_CURVE, see p1_data.asm): r12d = clock (ms), r13d = increment (ms) -> eax = softlim (ms, >= 2).  clobbers rcx, rdx, rsi.
 tm_curve:
+%ifdef TUNE
+    ; -DTUNE: the constants from T80 .. T84 (TMC_F0, TMC_F1, TMC_PM, TMC_H, TMC_CAP); H, PM and CAP at least 1, the share at least 1
+    mov edx, [tunetab+83*4]
+    cmp edx, 1
+    jge .th
+    mov edx, 1
+.th:movsxd rdx, edx                         ; H
+    mov eax, r13d
+    lea rcx, [rdx-1]
+    imul rax, rcx                           ; inc * (H - 1)
+    mov ecx, r12d
+    add rax, rcx
+    movsxd rcx, dword [moveoh]
+    imul rcx, rdx
+    sub rax, rcx                            ; rem = clock + inc * (H - 1) - overhead * H
+    cmp rax, 1
+    jge .r1
+    mov eax, 1
+.r1:mov rsi, rax
+    mov ecx, [tunetab+82*4]
+    cmp ecx, 1
+    jge .tp
+    mov ecx, 1
+.tp:mov eax, [fullm0]                       ; ecx = PM
+    add eax, [gply]                         ; game ply
+    cmp eax, ecx
+    jbe .p1
+    mov eax, ecx
+.p1:mov edx, [tunetab+81*4]
+    sub edx, [tunetab+80*4]
+    imul eax, edx
+    cdq
+    idiv ecx
+    add eax, [tunetab+80*4]                 ; share (1/10000)
+    cmp eax, 1
+    jge .ts
+    mov eax, 1
+.ts:imul rax, rsi
+    xor edx, edx
+    mov ecx, 10000
+    div rcx                                 ; target = rem * share / 10000
+    mov ecx, r12d
+    xchg rax, rcx
+    xor edx, edx
+    mov esi, [tunetab+84*4]
+    cmp esi, 1
+    jge .tc
+    mov esi, 1
+.tc:div rsi                                 ; clock / TMC_CAP
+%else
     mov eax, r13d
     imul rax, rax, TMC_H - 1                ; inc * (H - 1)
     mov ecx, r12d
@@ -711,6 +764,7 @@ tm_curve:
     xor edx, edx
     mov esi, TMC_CAP
     div rsi                                 ; clock / TMC_CAP
+%endif
     cmp rcx, rax
     jbe .c1
     mov rcx, rax

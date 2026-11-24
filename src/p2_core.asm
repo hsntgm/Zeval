@@ -189,6 +189,15 @@ init_lmr:
 %endif
     fisttp dword [tsbuf]
     mov eax, [tsbuf]
+%ifdef TUNE
+    test eax, eax                   ; -DTUNE: any T71 / T72 gives a table entry in 0 .. 63
+    jns .t0
+    xor eax, eax
+.t0:cmp eax, 63
+    jle .t1
+    mov eax, 63
+.t1:
+%endif
     mov ecx, ebx
     shl ecx, 6
     add ecx, ebp

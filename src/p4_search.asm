@@ -844,9 +844,16 @@ score_moves:
     test esi, esi
     jns .chg                    ; attacker worth no more than the victim and no bad history: good without SEE
 .chs:
+%ifdef TUNE
+    mov ecx, [tunetab+79*4]     ; T79 CAP_SEESH, T78 CAP_SEEB
+    sar esi, cl
+    neg esi
+    add esi, [tunetab+78*4]
+%else
     sar esi, CAP_SEESH
     neg esi
     add esi, CAP_SEEB           ; good history lowers the threshold, bad history raises it
+%endif
     mov edi, [r8+rbx*4]
     call see_ge
     pop rsi
@@ -1732,7 +1739,6 @@ qsearch:
 %define S_NMPVP  S_BASE+48          ; dd  NMP verification: ply + 1 of the node that runs the verification search (0 = none); EVALDIFF_HIST must not run for that re-entry of the same node
 %assign NEEDTTD (EVAL_TT | NMP_TTG | TTCUT_COND | (SING > 0))
 
-; FUTM: edx = L_SEVAL + FUT_B + FUT_M * ecx   (the futility threshold for 'ecx' plies; ecx unchanged)
 ; LMPLIM: ecx = depth -> eax = the late move count of the late quiet move pruning (LMP_SF; LMP_B = T76).  clobbers edx.
 ; Used by the pruning after the make and by the pre-make test (PREPRUNE), which must decide the same.
 %macro LMPLIM 0
@@ -1755,6 +1761,7 @@ qsearch:
 %endif
 %%d:
 %endmacro
+; FUTM: edx = L_SEVAL + FUT_B + FUT_M * ecx   (the futility threshold for 'ecx' plies; ecx unchanged)
 %macro FUTM 0
 %ifdef TUNE
     mov edx, [tunetab+5*4]
@@ -2012,7 +2019,12 @@ search:
     je .noiir
 .iirok:
 %else
-    cmp dword [rbp+L_DEPTH], 4
+%ifdef TUNE
+    mov eax, [tunetab+77*4]         ; IIR from depth T77 (IIR_D) on
+    cmp [rbp+L_DEPTH], eax
+%else
+    cmp dword [rbp+L_DEPTH], IIR_D
+%endif
     jl .noiir
 %endif
     dec dword [rbp+L_DEPTH]
@@ -4130,8 +4142,12 @@ think:
     mov r15d, INF
 %if HELPER
 %ifdef TUNE
-    mov ebx, [tunetab+73*4]     ; aspiration delta: T73 (ASP_W) + (unit mod 8) * SMP_ASPSTEP
+    mov ebx, [tunetab+73*4]     ; aspiration delta: T73 (ASP_W) + (unit mod 8) * SMP_ASPSTEP, at least 1 (0 would never widen)
     add ebx, (UNIT & 7) * SMP_ASPSTEP
+    cmp ebx, 1
+    jge .aw1
+    mov ebx, 1
+.aw1:
     cmp r12d, 5
     jl .asp
     mov r14d, r13d
@@ -4147,7 +4163,11 @@ think:
 %endif
 %else
 %ifdef TUNE
-    mov ebx, [tunetab+73*4]     ; aspiration delta (T73, ASP_W)
+    mov ebx, [tunetab+73*4]     ; aspiration delta (T73, ASP_W), at least 1 (0 would never widen)
+    cmp ebx, 1
+    jge .aw0
+    mov ebx, 1
+.aw0:
     cmp r12d, 5
     jl .asp
     mov r14d, r13d

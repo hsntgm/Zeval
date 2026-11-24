@@ -500,6 +500,9 @@ section .bss  align=64
 %ifndef ASP_W
 %define ASP_W 20            ; first aspiration half-width (T73; helper units add (unit mod 8) * SMP_ASPSTEP)
 %endif
+%ifndef IIR_D
+%define IIR_D 4             ; IIR_CUT 0: internal iterative reduction from this depth on (T77)
+%endif
 %ifndef NMP_CUT
 %define NMP_CUT 1
 %endif
