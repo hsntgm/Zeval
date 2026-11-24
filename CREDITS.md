@@ -41,6 +41,7 @@ This engine was shaped by what I learned from many open-source engines. Here I n
 - **PeSTO piece-square tables** (Ronald Friederich, Rofchade): the starting values of the tables, later retuned.
 - **Texel tuning** (Peter Österlund): the method behind the evaluation tuner.
 - **Syzygy tablebases** (Ronald de Man): used to calibrate and fit endgame evaluation.
+- **noob_3moves opening book**, from the book collection of the Stockfish project ([official-stockfish/books](https://github.com/official-stockfish/books), CC0 1.0): the start positions of the test matches and of the self-play data (`tests/books/noob_3moves.epd`, unchanged).
 - **python-chess** (Niklas Fiekas): used throughout the test scripts.
 - **cutechess**, **fastchess**, **Arena**, **Lucas Chess**: the GUIs and tournament managers the engine was run with or is meant to run in.
 - **Classic test suites** (Win At Chess by Fred Reinfeld, ECM, Arasan, and others): used locally to check tactics.
@@ -92,6 +93,7 @@ Bu motor, pek çok açık kaynak motordan öğrendiklerimle şekillendi. Burada,
 - **PeSTO taş-kare tabloları** (Ronald Friederich, Rofchade): tabloların başlangıç değerleri olarak kullanıldı, sonrasında yeniden ayarlandı.
 - **Texel yöntemi** (Peter Österlund): eval tuner'ının dayandığı parametre ayarı yöntemi.
 - **Syzygy tablebase'leri** (Ronald de Man): oyun sonu değerlendirmesini kalibre etmek ve ayarlamak için kullanıldı.
+- **noob_3moves açılış kitabı**, Stockfish projesinin kitap koleksiyonundan ([official-stockfish/books](https://github.com/official-stockfish/books), CC0 1.0): test maçlarının ve self-play verisinin başlangıç pozisyonları (`tests/books/noob_3moves.epd`, değiştirilmeden).
 - **python-chess** (Niklas Fiekas): tüm test betiklerinde kullanıldı.
 - **cutechess**, **fastchess**, **Arena**, **Lucas Chess**: motoru çalıştırdığım ya da çalışmasını hedeflediğim arayüzler ve turnuva yöneticileri.
 - **Klasik test setleri** (Fred Reinfeld'in Win At Chess'i, ECM, Arasan ve diğerleri): taktikleri kontrol etmek için yalnızca yerelde kullanıldı, bu repoda dağıtılmıyor.
