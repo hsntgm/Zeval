@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="260" height="30" viewBox="0 0 260 30" role="img" aria-labelledby="t">
+<title id="t">Zeval CCRL 3250 ± 50</title>
+<desc id="d">Rolling digits settle on 3250, the Zeval estimated CCRL rating.</desc>
+<defs>
+  <linearGradient id="ember" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#FFD166"/>
+    <stop offset="0.55" stop-color="#F3901F"/>
+    <stop offset="1" stop-color="#D9480F"/>
+  </linearGradient>
+  <linearGradient id="edge" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
+    <stop offset="0" stop-color="#2A2F3A"/>
+    <stop offset="0.4" stop-color="#2A2F3A"/>
+    <stop offset="0.5" stop-color="#FFD166"/>
+    <stop offset="0.6" stop-color="#2A2F3A"/>
+    <stop offset="1" stop-color="#2A2F3A"/>
+    <animateTransform attributeName="gradientTransform" type="translate" values="-1 0;1 0" dur="3.5s" repeatCount="indefinite"/>
+  </linearGradient>
+  <radialGradient id="pulse" cx="0.5" cy="0.5" r="0.5">
+    <stop offset="0" stop-color="#FFD166" stop-opacity="0.85"/>
+    <stop offset="1" stop-color="#FFD166" stop-opacity="0"/>
+  </radialGradient>
+  <clipPath id="win"><rect x="78" y="7.5" width="88" height="15"/></clipPath>
+  <clipPath id="card"><rect x="0" y="0" width="260" height="30" rx="5"/></clipPath>
+</defs>
+<style>
+  .lbl { font: 800 13px 'Segoe UI','Helvetica Neue',Arial,sans-serif; letter-spacing:1.8px; fill:#9AA3B2; text-anchor:middle; }
+  .dig { font: 800 20px 'Segoe UI','Helvetica Neue',Arial,sans-serif; text-anchor:middle; fill:url(#ember); }
+  .err { font: 700 13px 'Segoe UI','Helvetica Neue',Arial,sans-serif; fill:#F3901F; text-anchor:middle; }
+</style>
+
+<g clip-path="url(#card)">
+  <rect x="0" y="0" width="260" height="30" fill="#12151C"/>
+  <rect x="0" y="0" width="74" height="30" fill="#2A2F3A"/>
+  <text class="lbl" x="37" y="20">CCRL</text>
+
+  <g clip-path="url(#win)">
+    <!-- 3 -->
+    <g>
+      <animateTransform attributeName="transform" type="translate"
+        values="0 0;0 -45;0 -45" keyTimes="0;0.3;1" dur="5s"
+        repeatCount="indefinite" calcMode="spline"
+        keySplines="0.16 0.84 0.24 1;0 0 1 1"/>
+      <text class="dig" x="89"  y="22">0</text>
+      <text class="dig" x="89"  y="37">1</text>
+      <text class="dig" x="89"  y="52">2</text>
+      <text class="dig" x="89"  y="67">3</text>
+    </g>
+    <!-- 2 -->
+    <g>
+      <animateTransform attributeName="transform" type="translate"
+        values="0 0;0 -30;0 -30" keyTimes="0;0.3;1" dur="5s"
+        repeatCount="indefinite" calcMode="spline"
+        keySplines="0.16 0.84 0.24 1;0 0 1 1"/>
+      <text class="dig" x="111" y="22">0</text>
+      <text class="dig" x="111" y="37">1</text>
+      <text class="dig" x="111" y="52">2</text>
+    </g>
+    <!-- 5 -->
+    <g>
+      <animateTransform attributeName="transform" type="translate"
+        values="0 0;0 -75;0 -75" keyTimes="0;0.3;1" dur="5s"
+        repeatCount="indefinite" calcMode="spline"
+        keySplines="0.16 0.84 0.24 1;0 0 1 1"/>
+      <text class="dig" x="133" y="22">0</text>
+      <text class="dig" x="133" y="37">1</text>
+      <text class="dig" x="133" y="52">2</text>
+      <text class="dig" x="133" y="67">3</text>
+      <text class="dig" x="133" y="82">4</text>
+      <text class="dig" x="133" y="97">5</text>
+    </g>
+    <!-- 0 (static) -->
+    <text class="dig" x="155" y="22">0</text>
+  </g>
+
+  <text class="err" x="200" y="20">±50</text>
+
+  <circle cx="235" cy="15" r="4" fill="url(#pulse)">
+    <animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="235" cy="15" r="1.6" fill="#FFD166"/>
+
+  <rect x="0.5" y="0.5" width="259" height="29" rx="4.5" fill="none" stroke="url(#edge)" stroke-width="1"/>
+</g>
+</svg>
