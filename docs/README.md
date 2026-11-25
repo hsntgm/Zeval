@@ -23,6 +23,7 @@ what `tools/spsa.py` and `tests/match.py --optA "T0=90"` use. In the tables belo
 | Default | On in the release build. |
 | Retest | Off. The evidence is weak or comes only from very short time controls; it is worth a long time control SPRT. |
 | Borderline | Off. The results are close to zero; it is a candidate for a package test or a retune. |
+| Low priority | No proof either way: only a 300-game screen, or a long run close to zero. The door stays open. |
 | Closed | Off. Clearly negative, or no signal in the data. Do not retest without a new idea. |
 | Speed | Does not change the search tree; it is measured with `tests/bench_ab.py`, not in games. |
 | Diagnostic | For analysis and test builds only. |
@@ -233,16 +234,75 @@ Evaluation candidates keep a fixed number, `E1` .. `E21`. The next free number i
 
 The search margins were tuned for the current eval scale; see the rule in section 2.5.
 
-### 1.4 Ideas tried and removed from the code
+### 1.4 Search experiments removed from the code
 
-These ideas are no longer in the source, so they have no switch.
+Three groups of search changes were implemented, each part behind its own switch. With every switch at 0 the build was
+byte-identical to the default. Every part was measured and then removed from the source, so these ideas have no switch
+today.
 
-| Idea | Result | Notes |
-|---|---|---|
-| LMR in fractional plies with a continuous formula, history-based statistic score, TT-PV term, cutoff count, capture and check reduction | formula alone about −7 (800); best combination about 0 (600) | no part gained |
-| History feedback: TT-cutoff history update, exact-node update, continuation history 3 / 4 plies back, fail-low bonus for the parent move | parts +3 .. +12 at 3+0.03; combinations −12 .. −31 | the extra maluses push the history below the fixed pruning and LMR thresholds |
-| Malus for an early refuted move of the parent | +11.8 ± 10.0 at 3+0.03 | failed the 10+0.1 SPRT |
-| Quiescence: stand pat from the TT score, fail-high averaging, SEE threshold below 0, capture futility | single parts +1 .. +13 (300 games) | did not hold in 2 × 1000 games, alone or combined |
+The tables use these measures:
+
+- **Nodes:** total nodes at depth 12 on 40 positions, against the default.
+- **Screen:** 300 games at 3+0.03 (about ±25 Elo).
+- **Long run:** 2 × 1000 games at 3+0.03 on new seeds; the number of games is given where a run was stopped earlier.
+
+Status rules for these parts: **Closed** = a negative result proven in at least 1,000 games (the whole 95 % interval below
+0); **Retest** = a positive trend in a long run, waiting for an SPRT at a longer time control; **Low priority** = no proof
+either way.
+
+The batches are numbered by their place in the search plan; batches 3 and 4 were never implemented.
+
+**Batch 1: late move reductions in fractional plies.** The aim was finer reductions: R in 1/1024 ply from a continuous
+formula, adjusted by statistics of the move and the node, instead of the integer table and integer steps.
+
+| Part | What it did | Nodes | Screen | Long run | Status |
+|---|---|---|---|---|---|
+| Continuous formula | R = 768 + 1024 · 0.2135 · log2 d · log2 m; halved when not improving; a term for alpha − eval; more reduction at all nodes (R += R / (d + 1)); a negative R searches one ply deeper | −8.5 % | +15.1, −19.5 on a second seed (about −7 in 800) | −10.4 ± 10.3 | Closed: reduces more than the integer table |
+| TT-PV term | −1 ply at nodes that were on a PV, −0.5 more each for ttScore > alpha and ttDepth ≥ depth (a PV bit in the TT entry) | +24 % with the formula | +20.9, +2.3 (about +12 in 600) | −11.1 ± 9.9 | Closed |
+| Statistic score | History-based score: 2 × butterfly history plus both continuation rows (captures: victim value and capture history), divided by 15.6 | +3 % with the formula | +19.7, +3.5 (about +12 in 600) | −3.5 | Low priority |
+| Formula + TT-PV + statistic score | The full subset | +31 % | +10.4, −9.3 (about 0 in 600) | −4.2 | Low priority |
+| Cutoff count | More reduction when the child already had several cutoffs | −14 % (term alone) | −6.9 alone, about −35 inside the formula | – | Low priority (screen only) |
+| Reduction from move 2 | Moves 2 and 3 also reduced | – | −22.0 | – | Low priority (screen only) |
+| Captures and checks reduced | Late captures and checking moves reduced | – | −11.6 | – | Low priority (screen only; `CAP_LMR` −1.4, `LMR_BADCAP` −5.6 in 500 games) |
+| Prior reduction, continuation bonus after a re-search | The parent's reduction raises the child's; a fail-high after LMR rewards the move | – | −8.1 | – | Low priority (screen only) |
+| Reduced child as cut node | The reduced search treats the child as an expected cut node | – | +8.1 | – | Low priority (screen only) |
+
+The overall level of reduction decided the results, not any single term. Terms that gave reductions back beat the formula
+alone, but none beat the integer default.
+
+**Batch 2: history feedback.** The aim was to feed more search events into the history tables.
+
+| Part | What it did | Nodes | Screen | Long run | Status |
+|---|---|---|---|---|---|
+| TT-cutoff update | On a TT cutoff, a bonus for the quiet TT move and a malus for the parent's early quiet move | +1.9 % | +33.7, +10.4 (about +22 in 600) | +7.5 | Retest |
+| Exact-node update | PV nodes update the histories as a cutoff does | −5.9 % | +17.4 | +3.0 | Low priority |
+| Refuted parent move | Continuation malus for the parent's first move when it was refuted early | +5.2 % | +11.6 | +11.8 ± 10.0 (LOS 99 %); +10.4 ± 12.5 on a third seed | Retest: failed the 10+0.1 SPRT with the current thresholds; an SPSA of `CH_PM`, `CH_PD`, `LMR_HT` with the malus moved them by less than one step (8,200 games) |
+| Continuation rows 3 and 4 plies back | Two more continuation rows in ordering and update | −0.2 % | +8.1 | – | Low priority (screen only) |
+| Fail-low bonus | A node that fails low rewards the parent's quiet move | +5.1 % | −4.6 | – | Low priority (screen only) |
+| TT-cutoff + exact + refuted | Three parts together | – | – | −12.5 | Closed |
+| The same + rows 3 and 4 | Four parts together | +5.6 % | −20.9, −10.4 | −31.2 | Closed |
+| Smaller maluses | TT-cutoff malus 500, exact nodes bonus only, refuted malus × 0.5 | – | – | +10.8 ± 8.1 (3000) | Retest: the strongest long-run result of the batches |
+
+The parts win alone and lose together: the combinations of three and four parts are proven negative. `HSTAT` showed why: the extra maluses push the history values below the fixed
+thresholds that read them. `CH_PRUNE` dropped 1.7 % of its tested moves in the default, 16.5 % with the refuted-move malus
+and 52 % with three parts together. A change of the history scoring needs a retune of `CH_PM`, `CH_PD` and `LMR_HT`.
+
+**Batch 5: quiescence search.**
+
+| Part | What it did | Nodes | Screen | Long run | Status |
+|---|---|---|---|---|---|
+| TT stand pat | Stand pat from the TT score when its bound allows it | +2.9 % | +1.2 | +2.4 ± 16.5 (710) | Low priority |
+| Fail-high averaging | A fail high returns (value + beta) / 2 | +16.7 % | +12.7 | −6.7 ± 19.9 (520) | Low priority |
+| SEE threshold | Captures with SEE ≥ −36 cp are searched (instead of ≥ 0) | +7.7 % | +11.6 | +4.9 ± 12.7 (1000) | Retest |
+| Capture futility | For captures that are no recapture and no promotion, with base = static eval + 150: skip from the third such capture on, when base + victim ≤ alpha, or when SEE < alpha − base; a capture that gives check is searched | −3.6 % | +11.6 | −7.7 ± 15.1 (770) | Low priority |
+| Refuted-move malus + SEE threshold + TT stand pat | The three parts together | +6.5 % | – | +8.6 ± 12.0 (1300, LOS 92 %) | Retest: the strongest result of the quiescence batch |
+
+**What the three batches showed about measuring:**
+
+- **Screens only find clear failures.** Over 25 screens the spread was 16.7 Elo, against 12.5 for noise alone.
+- **Expect a winner by selection.** The best of several screens lands near +20 .. +30 even without a real gain, and a
+  combination of the "best" parts regresses towards zero.
+- **Decide on long runs only.** A default needs 2 × 1000 games and then an SPRT at 10+0.1.
 
 ---
 
@@ -456,6 +516,14 @@ Evaluation values are checked without a special build: `tuner/check_eval.py` (en
 - `SE_TTD` 3
 
 All of these have only short time control or screening results.
+
+**Search experiments to retest** (section 1.4), each as a switch again, 2 × 1000 games and then an SPRT at 10+0.1 or longer:
+
+- the smaller history maluses (+10.8 ± 8.1 in 3000 games);
+- the refuted-parent-move malus (+11.8 ± 10.0 in 2000 games; failed the 10+0.1 SPRT);
+- the TT-cutoff history update (+7.5 in 2000 games);
+- the refuted-move malus together with the quiescence SEE threshold of −36 cp and the TT stand pat (+8.6 ± 12.0 in 1300
+  games), and the SEE threshold alone (+4.9 ± 12.7 in 1000 games).
 
 **Borderline, for package tests or a retune:**
 
