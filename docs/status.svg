@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="22" viewBox="0 0 180 22" role="img" aria-labelledby="t">
+<title id="t">Zeval: training</title>
+<desc id="d">Zeval is currently training on self-play data.</desc>
+<defs>
+  <linearGradient id="top" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.10"/>
+    <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+  </linearGradient>
+  <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+    <stop offset="0" stop-color="#FFF" stop-opacity="0.8"/>
+    <stop offset="1" stop-color="#FFF" stop-opacity="0"/>
+  </radialGradient>
+  <clipPath id="card"><rect x="0" y="0" width="180" height="22" rx="4"/></clipPath>
+</defs>
+<style>
+  .lbl { font: 800 10px 'Segoe UI','Helvetica Neue',Arial,sans-serif; letter-spacing:1.4px; fill:#C4CBD6; text-anchor:middle; }
+  .st  { font: 800 10px 'Segoe UI','Helvetica Neue',Arial,sans-serif; letter-spacing:1.4px; fill:#FFFFFF; }
+</style>
+
+<g clip-path="url(#card)">
+  <rect x="0" y="0" width="64" height="22" fill="#2A2F3A"/>
+  <text class="lbl" x="32" y="15">ZEVAL</text>
+
+  <rect x="64" y="0" width="116" height="22" fill="#D9480F"/>
+
+  <circle cx="82" cy="11" r="4" fill="url(#glow)" opacity="0.6">
+    <animate attributeName="r" values="3.5;5.5;3.5" dur="1.6s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.6;0.2;0.6" dur="1.6s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="82" cy="11" r="2.2" fill="#FFFFFF"/>
+
+  <text class="st" x="92" y="15">TRAINING</text>
+
+  <rect x="0" y="0" width="180" height="11" fill="url(#top)"/>
+</g>
+</svg>
