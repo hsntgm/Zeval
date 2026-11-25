@@ -2,9 +2,9 @@
 <img src="docs/zeval-logo.svg" alt="Zeval logo" width="150" height="150">
 
 # Zeval
- 
+
 <a href="https://lichess.org/@/Zeval_Bot"><img src="https://img.shields.io/badge/Lichess-@Zeval__Bot-black?style=for-the-badge&logo=lichess&logoColor=white" alt="Lichess Bot"></a>
- 
+
 <a href="https://lichess.org/@/Zeval_Bot/perf/bullet"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Flichess.org%2Fapi%2Fuser%2FZeval_Bot&query=%24.perfs.bullet.rating&label=Bullet&color=D55E00&style=for-the-badge&logo=lichess&logoColor=white" alt="Bullet Rating"></a>
 <a href="https://lichess.org/@/Zeval_Bot/perf/blitz"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Flichess.org%2Fapi%2Fuser%2FZeval_Bot&query=%24.perfs.blitz.rating&label=Blitz&color=E69F00&style=for-the-badge&logo=lichess&logoColor=white" alt="Blitz Rating"></a>
 <a href="https://lichess.org/@/Zeval_Bot/perf/rapid"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Flichess.org%2Fapi%2Fuser%2FZeval_Bot&query=%24.perfs.rapid.rating&label=Rapid&color=009E73&style=for-the-badge&logo=lichess&logoColor=white" alt="Rapid Rating"></a>
@@ -13,9 +13,11 @@
 <a href="https://lichess.org/@/Zeval_Bot/all"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Flichess.org%2Fapi%2Fuser%2FZeval_Bot&query=%24.count.win&label=Wins&color=009E73&style=for-the-badge" alt="Wins"></a>
 <a href="https://lichess.org/@/Zeval_Bot/all"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Flichess.org%2Fapi%2Fuser%2FZeval_Bot&query=%24.count.draw&label=Draws&color=999999&style=for-the-badge" alt="Draws"></a>
 <a href="https://lichess.org/@/Zeval_Bot/all"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Flichess.org%2Fapi%2Fuser%2FZeval_Bot&query=%24.count.loss&label=Losses&color=D55E00&style=for-the-badge" alt="Losses"></a>
- 
+
+<img src="docs/zeval-rating-badge.svg" height="30"> <img src="docs/status.svg" height="22">
+
 [English](#english) · [Türkçe](#türkçe)
- 
+
 </div>
 
 ---
