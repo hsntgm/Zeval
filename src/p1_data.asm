@@ -184,6 +184,13 @@ section .bss  align=64
 %define PREPRUNE 1
 %endif
 
+; ---- R50MATE 1: the 50-move rule does not hide a checkmate.  A node at half-move clock >= 100 is a draw unless the side to move is
+; ---- in check without a legal move: then it is mated (a mate given on the 100th half-move ends the game before the draw can be claimed).
+; ---- 0 = every node at half-move clock >= 100 is a draw.
+%ifndef R50MATE
+%define R50MATE 1
+%endif
+
 ; ---- Speed-only switches (the search tree is identical, fixed-depth node counts do not change):
 ; ---- SIMDPICK  pick() = the best remaining move (the FIRST index holding the maximum score) and the same swap as the scalar loop in every variant:
 ; ----           5 (default) = ONE pass that carries the running maximum and its index per lane (no second scan loop), SSE4.1 (pmaxsd / pminsd)

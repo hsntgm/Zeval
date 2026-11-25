@@ -114,11 +114,15 @@ parse_num:
 .r: ret
 %endif                          ; UNIT == 0 (readline, find_tok, parse_num)
 
-; isdraw -> eax = 1 for 50-move rule, repetition, insufficient material
+; isdraw -> eax = 1 for repetition, insufficient material, 50-move rule (R50MATE: 2 for the 50-move rule, the caller looks for a mate)
 isdraw:
     mov eax, [halfm]
     cmp eax, 100
+%if R50MATE
+    jge .r50
+%else
     jge .yes
+%endif
     mov ecx, [gply]
     mov edx, eax
     cmp edx, ecx
@@ -155,6 +159,11 @@ isdraw:
 .yes:
     mov eax, 1
     ret
+%if R50MATE
+.r50:
+    mov eax, 2
+    ret
+%endif
 
 ; in_check -> eax = 1 if the side to move is in check
 in_check:
@@ -165,8 +174,8 @@ in_check:
     xor esi, 8
     jmp attacked
 
-%if UNIT == 0
-; has_legal -> eax = 1 if the side to move has a legal move
+%if UNIT == 0 || R50MATE
+; has_legal -> eax = 1 if the side to move has a legal move (every unit with R50MATE: search calls it at half-move clock >= 100 in check)
 has_legal:
     push rbx
     push rbp
@@ -194,7 +203,9 @@ has_legal:
     pop rbp
     pop rbx
     ret
+%endif
 
+%if UNIT == 0
 ; apply_text_move(rsi = "e2e4[qrbn]") -> eax = move applied (0 if illegal / unparsable)
 apply_text_move:
     push rbx
@@ -439,4 +450,4 @@ ob_fen:
     pop rbp
     pop rbx
     ret
-%endif                          ; UNIT == 0 (has_legal .. ob_fen)
+%endif                          ; UNIT == 0 (apply_text_move .. ob_fen)

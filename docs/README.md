@@ -69,7 +69,7 @@ Evaluation candidates keep a fixed number, `E1` .. `E21`. The next free number i
 | Late move reductions | Table R = 0.75 + log2(d) · log2(m) · 0.2135, from move `LMR_MINM` 4; modified by the LMR switches below | 750 (T71), 2135 (T72) |
 | Move ordering | TT move, good captures (MVV-LVA + capture history), 2 killers, quiet moves (butterfly history + continuation history), bad captures | |
 | Quiet history | Butterfly table [side][from][to]; bonus min(16 · d², 1600), gravity, ±16000 | 16 (T67), `HIST_BMAX` 1600 (T68) |
-| Draw detection | Repetition, fifty-move rule, insufficient material | |
+| Draw detection | Repetition, fifty-move rule, insufficient material; a checkmate on the 100th half-move still counts as mate | `R50MATE` 1 (0 = every node at half-move clock 100 is a draw) |
 
 ### 1.2 Search switches
 

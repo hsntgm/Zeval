@@ -48,6 +48,9 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
 
 - **`EV_INIT`:** the "almost unwinnable" rule now also requires that no passed pawn is on the board.
 - **`EV_IMBAL`:** two entries that repeated the bishop-pair term are fixed at 0.
+- **50-move rule and checkmate** (`R50MATE`, default 1): a node at half-move clock 100 was a draw even when the side to move was
+  checkmated, so a mate given on the 100th half-move was not seen (mate in 1 with the clock at 99, mate in 2 at 97). Such a node is now
+  a draw only when the side to move is not checkmated. `R50MATE` 0 builds the old rule.
 - **Pre-make pruning test** (`PREPRUNE`): it used a fixed depth limit and late move count. With `PR_MAXD` below 6 it pruned moves that the
   pruning after the move no longer covers. Both tests now share one definition; the default search is unchanged.
 - **`tests/match.py`:**

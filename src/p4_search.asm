@@ -1862,7 +1862,23 @@ search:
     jne .afterdraw
     call isdraw
     test eax, eax
+%if R50MATE
+    jz .nodraw
+    cmp eax, 2
+    jne .ret0
+    call in_check                   ; 50-move rule: a draw unless the side to move is checkmated
+    test eax, eax
+    jz .ret0
+    call has_legal
+    test eax, eax
     jnz .ret0
+    mov eax, -MATE
+    add eax, [ply]
+    jmp .retv
+.nodraw:
+%else
+    jnz .ret0
+%endif
     cmp dword [ply], MAXPLY-2
     jge .retstatic
     ; mate distance pruning

@@ -47,7 +47,7 @@ by `tools\build_testbuilds.bat` (Linux: `sh tools/build_testbuilds.sh`).
 | `t_robust.py` | Commands queued behind a running search, `go infinite` waits for `stop`, a 1160-ply move list, console-mode repetition draw, malformed FEN. |
 | `t_memsafety.py` | Game history beyond the undo stack, an absurd perft depth, malformed en-passant fields and 300 malformed FEN strings: no crash. |
 | `t_stress.py` | 200 random positions with short searches: a legal bestmove, the position unchanged afterwards, latency. |
-| `t_tactics.py` | 12 small tactical positions (mates, hanging pieces, promotion) at 600 ms: a quick tripwire. |
+| `t_tactics.py` | 15 small tactical positions (mates, also on the 100th half-move; hanging pieces, promotion) at 600 ms: a quick tripwire. |
 
 ## Time management
 
