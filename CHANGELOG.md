@@ -58,7 +58,12 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
     happened on the board.
   - A forced move answered without a score line was recorded with score 0. It now keeps the previous score.
 - **`tuner/tune.py`:** `--seed` had no effect on the validation split; it now selects a different split.
-- **`tools/spsa.py`:** negative values were clipped to 0, and the folder of `--out` was not created.
+- **`tools/spsa.py`:**
+  - Negative values were clipped to 0, and the folder of `--out` was not created.
+  - The start-up check refused parameters that are in use but act only in some positions or deeper searches (endgame scale, history
+    bonus limits, rare thresholds), and named a switch that is off as the reason. A `-DTUNE` build now declares as options `T<n>` the
+    slots its code uses; the check refuses only a parameter the build does not declare, and a search that does not change gives a note.
+  - The check waited without limit for an engine that stopped answering; it now stops with an error.
 - **`--help`:** fixed for `tuner/tune.py` and `tests/t_eval.py`; both stopped with an error.
 - **Build:** `build/build.bat` can link with MSVC `link.exe`.
 - **Tests:**
@@ -85,6 +90,9 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
   - `-DHSTAT` (console command `hstat`): counters of continuation-history pruning and of the LMR history step.
   - `-DPCVERIFY` (`pcstat`): ProbCut without cutting, counting how often a would-be cut is refuted.
 - **New `tools/build_testbuilds.sh` / `.bat`:** build the test builds used by `verify_smp.bat` and `verify_units.bat`.
+- **New `tests/t_tune.py`:** every read of the option table is marked, and a `-DTUNE` build declares its `T<n>` options with the current
+  values.
+- **`tests/match.py`:** an engine that fails the start-up handshake is stopped instead of left running.
 
 ### Tuner
 
@@ -102,7 +110,7 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
 - **`tools/spsa.py`:**
   - Parameter bounds.
   - The mean of the last iterations as the result.
-  - A start-up check that every parameter changes the search.
+  - A start-up check that the build uses every parameter.
   - Failed engines counted.
   - `--resume` checks its file.
   - `--book`.

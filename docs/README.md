@@ -14,7 +14,8 @@ set NASMFLAGS=-DSING=0 -DEV_SPACE=1 & build\build.bat     # Windows
 ```
 
 **Tunable constants** are immediates in the release build. A `-DTUNE` build reads them from the UCI options `T0` .. `T84`, which is
-what `tools/spsa.py` and `tests/match.py --optA "T0=90"` use. In the tables below, the `T` column gives the option index.
+what `tools/spsa.py` and `tests/match.py --optA "T0=90"` use. Its `uci` answer declares only the options its code uses: a constant behind a
+switch that is off is not offered. In the tables below, the `T` column gives the option index.
 
 **Status values:**
 

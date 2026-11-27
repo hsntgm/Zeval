@@ -2195,6 +2195,7 @@ SHARED kpk_bb, mateg
 ; KMUL reg32, tune index, default: reg *= the constant (option table with -DTUNE).  KCMP reg32, index, default: compare with it.  KSUB / KADD.
 %macro KMUL 3
 %ifdef TUNE
+    TUSE %2
     imul %1, [tunetab+(%2)*4]
 %else
     imul %1, %1, %3
@@ -2202,6 +2203,7 @@ SHARED kpk_bb, mateg
 %endmacro
 %macro KCMP 3
 %ifdef TUNE
+    TUSE %2
     cmp %1, [tunetab+(%2)*4]
 %else
     cmp %1, %3
@@ -2209,6 +2211,7 @@ SHARED kpk_bb, mateg
 %endmacro
 %macro KSUB 3
 %ifdef TUNE
+    TUSE %2
     sub %1, [tunetab+(%2)*4]
 %else
     sub %1, %3
@@ -2216,6 +2219,7 @@ SHARED kpk_bb, mateg
 %endmacro
 %macro KADD 3
 %ifdef TUNE
+    TUSE %2
     add %1, [tunetab+(%2)*4]
 %else
     add %1, %3

@@ -179,6 +179,8 @@ init_lmr:
     fyl2x
     fmulp
 %ifdef TUNE
+    TUSE 71
+    TUSE 72
     fimul dword [tunetab+72*4]      ; -DTUNE: * T72 / 10000 + T71 / 1000 (defaults 2135 and 750: the curve below)
     fidiv dword [c_i10]
     fiadd dword [tunetab+71*4]

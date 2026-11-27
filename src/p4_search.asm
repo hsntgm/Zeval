@@ -845,6 +845,8 @@ score_moves:
     jns .chg                    ; attacker worth no more than the victim and no bad history: good without SEE
 .chs:
 %ifdef TUNE
+    TUSE 78
+    TUSE 79
     mov ecx, [tunetab+79*4]     ; T79 CAP_SEESH, T78 CAP_SEEB
     sar esi, cl
     neg esi
@@ -1553,6 +1555,7 @@ qsearch:
     add edx, 800
 .dp2:
 %ifdef TUNE
+    TUSE 58
     add edx, [tunetab+58*4]         ; delta margin (T58)
 %else
     add edx, DELTA_M
@@ -1764,8 +1767,10 @@ qsearch:
 ; FUTM: edx = L_SEVAL + 110 + 90 * ecx   (the futility threshold for 'ecx' plies; -DTUNE: T4 + T5 * ecx; ecx unchanged)
 %macro FUTM 0
 %ifdef TUNE
+    TUSE 5
     mov edx, [tunetab+5*4]
     imul edx, ecx
+    TUSE 4
     add edx, [tunetab+4*4]
 %else
     imul edx, ecx, 90
@@ -2036,6 +2041,7 @@ search:
 .iirok:
 %else
 %ifdef TUNE
+    TUSE 77
     mov eax, [tunetab+77*4]         ; IIR from depth T77 (IIR_D) on
     cmp [rbp+L_DEPTH], eax
 %else
@@ -2190,8 +2196,10 @@ search:
 .rfpt:
 %endif
 %ifdef TUNE
+    TUSE 0
     mov edx, [tunetab+0*4]
     imul edx, ecx
+    TUSE 1
     mov eax, [tunetab+1*4]
     imul eax, [rbp+L_IMPR]
 %else
@@ -2244,6 +2252,7 @@ search:
     mov eax, [rbp+L_DEPTH]
     shr eax, 2
 %ifdef TUNE
+    TUSE 2
     add eax, [tunetab+2*4]
 %else
     add eax, NMP_RB
@@ -2258,6 +2267,7 @@ search:
     mov eax, ecx
     xor edx, edx
 %ifdef TUNE
+    TUSE 3
     mov ecx, [tunetab+3*4]
     test ecx, ecx
     jnz .nrdiv
@@ -2604,6 +2614,7 @@ search:
     imul eax, ecx
 %ifdef TUNE
     mov esi, eax
+    TUSE 64
     imul esi, [tunetab+64*4]
     neg esi                     ; threshold = -SEE_CM * depth^2 (T64)
 %else
@@ -2732,6 +2743,7 @@ search:
     SEDCNT 0
 %ifdef TUNE
     mov eax, [rbp+L_DEPTH]
+    TUSE 62
     imul eax, [tunetab+62*4]        ; SE_M
 %else
     imul eax, [rbp+L_DEPTH], SE_M
@@ -3302,6 +3314,7 @@ search:
 .k1:mov eax, [rbp+L_DEPTH]
     imul eax, eax
 %ifdef TUNE
+    TUSE 67
     imul eax, [tunetab+67*4]        ; quiet history bonus: T67 * depth^2 (16), at most T68 (HIST_BMAX)
 %else
     shl eax, 4
@@ -3317,6 +3330,7 @@ search:
 %if CH_BL
 %ifdef TUNE
     mov eax, [rbp+L_DEPTH]
+    TUSE 65
     imul eax, [tunetab+65*4]        ; continuation bonus: linear in depth (T65 CH_BA, T66 CH_BMAX)
 %else
     imul eax, [rbp+L_DEPTH], CH_BA  ; continuation bonus: linear in depth
@@ -3358,6 +3372,7 @@ search:
     mov edi, [rbp+L_MV]
 %ifdef TUNE
     mov esi, [rbp+L_DEPTH]
+    TUSE 69
     imul esi, [tunetab+69*4]        ; capture history bonus: T69 CAP_BA per ply, at most T70 CAP_BMAX
 %else
     imul esi, [rbp+L_DEPTH], CAP_BA
@@ -3369,6 +3384,7 @@ search:
 .capmal:                            ; (also after a quiet cutoff)
 %ifdef TUNE
     mov eax, [rbp+L_DEPTH]
+    TUSE 69
     imul eax, [tunetab+69*4]        ; capture history bonus: T69 CAP_BA per ply, at most T70 CAP_BMAX
 %else
     imul eax, [rbp+L_DEPTH], CAP_BA
@@ -4163,6 +4179,7 @@ think:
     mov r15d, INF
 %if HELPER
 %ifdef TUNE
+    TUSE 73
     mov ebx, [tunetab+73*4]     ; aspiration delta: T73 (ASP_W) + (unit mod 8) * SMP_ASPSTEP, at least 1 (0 would never widen)
     add ebx, (UNIT & 7) * SMP_ASPSTEP
     cmp ebx, 1
@@ -4184,6 +4201,7 @@ think:
 %endif
 %else
 %ifdef TUNE
+    TUSE 73
     mov ebx, [tunetab+73*4]     ; aspiration delta (T73, ASP_W), at least 1 (0 would never widen)
     cmp ebx, 1
     jge .aw0

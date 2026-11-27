@@ -95,6 +95,7 @@ Each script names the build it needs (`sh tests/build1.sh OUT -D...`).
 | `t_ppverify.py` | The pre-make legality and check test against make / unmake; `--selftest` builds broken variants. |
 | `t_singular.py` | Rules and counters of the singular-extension exclusion search. |
 | `t_ordering.py` | *report* Move-ordering statistics, optionally against a reference (`ordering_ref_*.json`) or a second build; `--gate` makes it a check. |
+| `t_tune.py` | `-DTUNE`: every read of the option table is marked (`TUSE`), and `uci` declares the options `T<n>` the build uses, with their current values. |
 
 ## Matches and strength
 

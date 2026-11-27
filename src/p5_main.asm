@@ -686,6 +686,7 @@ s_tmcdbg_l  equ $-s_tmcdbg
 tm_curve:
 %ifdef TUNE
     ; -DTUNE: the constants from T80 .. T84 (TMC_F0, TMC_F1, TMC_PM, TMC_H, TMC_CAP); H, PM and CAP at least 1, the share at least 1
+    TUSE 83
     mov edx, [tunetab+83*4]
     cmp edx, 1
     jge .th
@@ -703,6 +704,7 @@ tm_curve:
     jge .r1
     mov eax, 1
 .r1:mov rsi, rax
+    TUSE 82
     mov ecx, [tunetab+82*4]
     cmp ecx, 1
     jge .tp
@@ -712,7 +714,9 @@ tm_curve:
     cmp eax, ecx
     jbe .p1
     mov eax, ecx
+    TUSE 81
 .p1:mov edx, [tunetab+81*4]
+    TUSE 80
     sub edx, [tunetab+80*4]
     imul eax, edx
     cdq
@@ -728,6 +732,7 @@ tm_curve:
     mov ecx, r12d
     xchg rax, rcx
     xor edx, edx
+    TUSE 84
     mov esi, [tunetab+84*4]
     cmp esi, 1
     jge .tc
@@ -1526,6 +1531,11 @@ _start:
     jz .n1
     mov dword [uci_mode], 1
     OBS s_uciok, s_uciok_l
+%ifdef TUNE
+    call ob_flush
+    call tune_options
+    OBS s_uciend, s_uciend_l
+%endif
     call ob_flush
     jmp .loop
 .n1:mov edi, c_isready
@@ -1834,6 +1844,44 @@ _start:
 game_over_quiet:
     call game_over
     ret
+
+%ifdef TUNE
+; tune_options (-DTUNE): "option name T<n> type spin default <current value> ..." for every slot this build uses (bit n of tune_live).
+; Placed after every TUSE of the unit, so that tune_live sees all of them.
+tune_options:
+    push rbx
+    xor ebx, ebx
+.l: bt dword [tune_live], ebx
+    jnc .n
+    OBS s_topt1, s_topt1_l
+    mov eax, ebx
+    call ob_num
+    OBS s_topt2, s_topt2_l
+    movsxd rax, dword [tunetab+rbx*4]
+    call ob_num
+    OBS s_topt3, s_topt3_l
+    call ob_flush
+.n: inc ebx
+    cmp ebx, TUNEN
+    jb .l
+    pop rbx
+    ret
+align 4
+tune_live:                      ; bit n = slot n is used (TUSE)
+%assign tl_i 0
+%rep (TUNEN + 31) / 32
+%assign tl_w 0
+%assign tl_b 0
+%rep 32
+%ifdef TU_%[tl_i]
+%assign tl_w tl_w | (1 << tl_b)
+%endif
+%assign tl_i tl_i+1
+%assign tl_b tl_b+1
+%endrep
+    dd tl_w
+%endrep
+%endif
 %endif                          ; UNIT == 0
 
 %ifdef PCVERIFY

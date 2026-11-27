@@ -4,7 +4,8 @@ further search constants T62 .. T79, time curve T80 .. T84: see tune_def in src/
 
 Every iteration perturbs all parameters at once by +-c_k (random signs), plays --pairs game pairs (colours swapped, same opening) between
 theta + c_k*delta and theta - c_k*delta with the same engine binary, and moves theta along delta by r_k * c_k * result, where result is the SUM over
-the pairs of (score of the + side - score of the - side), each pair in [-1, +1]: every pair counts as one observation, as in fishtest, so --r-end is
+the pairs of (points of the + side - points of the - side) / 2, each pair in [-1, +1] (+1: the + side won both games): every pair counts as one
+observation, as in fishtest, so --r-end is
 the step per pair and an iteration with --pairs P moves up to P times as far as one pair.  Schedules as in common chess-engine SPSA practice:
 c_k = c / (k + 1)^0.101, a_k = a / (A + k + 1)^0.602, r_k = a_k / c_k^2, with a chosen so that r at the last iteration equals --r-end.
 The values sent to the engine are rounded to integers (negative values too: the -DTUNE build accepts "setoption name Tn value -5").  A perturbation
@@ -20,8 +21,9 @@ usage:  python3 tools/spsa.py ENGINE --param T0=85,10 --param T4=110,12 ... [--i
                              perturbed values stay within [min, max] (a divisor or a window that must not reach 0, a margin that must stay > 0)
         --avg-last N         the result also gives the mean of theta over the last N iterations (default: the last fifth), which is less
                              noisy than the final point
-        --no-check           skip the start-up check that every parameter changes the search (a search to depth 9 on 4 positions with
-                             start - c and start + c must differ in nodes; time-management parameters are checked for the mode only)
+        --no-check           skip the start-up check: every parameter must be an option of the engine (a -DTUNE build declares the
+                             slots its code uses), and a search to depth 9 on 4 positions with start - c and start + c is compared (no
+                             difference only gives a note: a parameter may act only in some positions or deeper searches)
         --book auto|random|FILE   start positions as tests/match.py --book (default auto: tests/books/noob_3moves.epd when present)
         --pairs              game pairs per iteration (run in parallel on --workers processes)
 The result (rounded theta, history) is written to --out every 10 iterations (atomically); --resume continues a run from that file (the perturbation
@@ -29,7 +31,7 @@ of iteration k is seeded by --seed and k, so a resumed run is the same run).  Ve
 A few thousand games only move the parameters coarsely; real runs use tens of thousands.
 Parameters that do nothing in the default -DTUNE build (their switch is off; build with the switch on to tune them): T17 (EVALDIFF_HIST),
 T18 (NMP_VER), T19 (IIR_CUT; the live IIR depth is T77), T28 / T29 (EV_LAZY), T30 (EV_R50), T31 .. T39 (EV_INIT), T59 (CH_LMR); T85 .. T95
-are unused.  The start-up check finds them.  T12 .. T16 and T80 .. T84 are time-management constants: they act only with --tc (go wtime /
+are unused.  The build does not declare them as options, and the start-up check refuses them.  T12 .. T16 and T80 .. T84 are time-management constants: they act only with --tc (go wtime /
 btime), not with --movetime (refused).  Adjudication (win / draw by the engines' own scores) leans towards the engine's own judgement: for
 evaluation constants (T20 .. T57) use --no-adj.
 """
@@ -44,7 +46,7 @@ import match  # noqa: E402
 def pair(args):
     eng, opt_p, opt_m, opening, mode, adj = args
     r1, r2, w1, w2, _, _ = match.worker((eng, eng, opt_p, opt_m, opening, mode, False, adj))
-    return (r1 + r2) - 1.0, (w1 == "fail") + (w2 == "fail")     # + side score minus - side score over the pair (-1 .. +1), engine failures
+    return (r1 + r2) - 1.0, (w1 == "fail") + (w2 == "fail")     # (+ side points - - side points) / 2 over the pair (-1 .. +1), engine failures
 
 
 TM_SLOTS = set(range(12, 17)) | set(range(80, 85))      # time-management constants: they act with a clock only
@@ -54,41 +56,69 @@ CHECK_FENS = ["r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4
               "r2q1rk1/pp2bppp/2n1pn2/3p4/2PP4/2N1PN2/PP3PPP/R2QKB1R w KQ - 0 9"]
 
 
+CHECK_DEPTH = 9
+CHECK_TIMEOUT = 300     # seconds for one start-up search: an engine that stops answering is reported, not waited for
+
+
+def engine_slots(engine):
+    """{n: current value} of the options T<n> the engine declares (a -DTUNE build declares the slots its code uses)"""
+    try: e = match.Eng(engine)
+    except RuntimeError as ex: raise SystemExit(f"start-up check: {engine}: {ex}")
+    slots = {}
+    try:
+        e.send("uci")
+        end = time.time() + 60
+        while True:
+            if time.time() > end: raise RuntimeError("timeout waiting uciok")
+            t = e.readline(1.0).split()
+            if t[:1] == ["uciok"]: break
+            if len(t) >= 6 and t[:2] == ["option", "name"] and t[2][:1] == "T" and t[2][1:].isdigit() and "default" in t:
+                slots[int(t[2][1:])] = int(t[t.index("default") + 1])
+    except RuntimeError as ex: raise SystemExit(f"start-up check: {engine}: {ex}")
+    finally: e.quit()
+    return slots
+
+
 def nodes_with(engine, setopts):
     """total nodes of a depth-9 search on CHECK_FENS with the given 'Tn=v' options"""
-    import subprocess
-    p = subprocess.Popen([engine], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
-    def send(x): p.stdin.write(x + "\n"); p.stdin.flush()
-    send("uci")
-    for kv in setopts:
-        n, v = kv.split("=")
-        send(f"setoption name {n} value {v}")
+    try: e = match.Eng(engine, ";".join(setopts))
+    except RuntimeError as ex: raise SystemExit(f"start-up check: {engine}: {ex}")
     total = 0
-    for fen in CHECK_FENS:
-        send("ucinewgame"); send("position fen " + fen); send("go depth 9")
-        last = 0
-        while True:
-            line = p.stdout.readline()
-            if not line: raise SystemExit(f"start-up check: {engine} stopped")
-            t = line.split()
-            if "nodes" in t: last = int(t[t.index("nodes") + 1])
-            if line.startswith("bestmove"): break
-        total += last
-    send("quit"); p.wait(timeout=10)
+    try:
+        for fen in CHECK_FENS:
+            e.newgame(); e.send("position fen " + fen); e.send(f"go depth {CHECK_DEPTH}")
+            end = time.time() + CHECK_TIMEOUT; last = 0
+            while True:
+                if time.time() > end: raise RuntimeError(f"no bestmove within {CHECK_TIMEOUT} s")
+                line = e.readline(1.0); t = line.split()
+                if "nodes" in t: last = int(t[t.index("nodes") + 1])
+                if line.startswith("bestmove"): break
+            total += last
+    except RuntimeError as ex: raise SystemExit(f"start-up check: {engine}: {ex}")
+    finally: e.quit()
     return total
 
 
 def check_active(engine, names, theta, c0, lo, hi):
-    """refuse a parameter that does not change the search (its switch off in this build, or not a tuning slot at all)"""
-    dead = []
-    for n, t, c, l, h in zip(names, theta, c0, lo, hi):
-        if int(n[1:]) in TM_SLOTS: continue
-        a = int(round(max(l, t - c))); b = int(round(min(h, t + c)))
-        if a == b or nodes_with(engine, [f"{n}={a}"]) == nodes_with(engine, [f"{n}={b}"]): dead.append(n)
+    """refuse a parameter the build does not use (not declared as an option); note one that a short search does not see"""
+    slots = engine_slots(engine)
+    if not slots:
+        raise SystemExit(f"start-up check: {engine} declares no T options: not a -DTUNE build, or one older than this check "
+                         "(build with NASMFLAGS=-DTUNE; --no-check skips the check)")
+    dead = [n for n in names if int(n[1:]) not in slots]
     if dead:
-        raise SystemExit(f"start-up check: the search of {engine} does not change with {', '.join(dead)} (its switch is off in this build, "
-                         "or the slot is unused); --no-check skips the check")
-    print(f"start-up check: all {len(names)} parameters change the search", flush=True)
+        raise SystemExit(f"start-up check: this build of {engine} does not use {', '.join(dead)}: the code that reads it is behind a switch "
+                         "that is off (see the list at the top of tools/spsa.py and tune_def in src/p5_main.asm; build with the switch on)")
+    quiet = []
+    for n, t, c, l, h in zip(names, theta, c0, lo, hi):
+        if int(n[1:]) in TM_SLOTS: continue                       # a clock only: a fixed-depth search never reads them
+        a = int(round(max(l, t - c))); b = int(round(min(h, t + c)))
+        if a == b or nodes_with(engine, [f"{n}={a}"]) == nodes_with(engine, [f"{n}={b}"]): quiet.append(n)
+    if quiet:
+        print(f"start-up check: note: a depth-{CHECK_DEPTH} search of {len(CHECK_FENS)} positions does not change with {', '.join(quiet)} "
+              "(start - c against start + c).  The build uses them, so they act only in some positions (endgames, rare thresholds) or in "
+              "deeper searches; the run goes on.", flush=True)
+    print(f"start-up check: this build uses all {len(names)} parameters", flush=True)
 
 
 def opts(names, vals):

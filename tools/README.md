@@ -160,8 +160,10 @@ python3 tools/spsa.py zeval_tune --param T0=85,8,20,200 --param T4=110,10 \
 
 - **`--param Tn=start,c[,min,max]`** gives the start value, the perturbation size and optional bounds. A `c` of about
   5 to 10 % of the value is a good start. A `c` too small to change the rounded integer is refused.
-- **Start-up check.** Before any games, the script verifies that every parameter changes the search. A parameter whose
-  switch is off in the build is refused. `--no-check` skips the check.
+- **Start-up check.** Before any games, the script verifies that the build uses every parameter: a `-DTUNE` build declares
+  as options `T<n>` only the slots its code uses, so a parameter whose switch is off is refused. A depth-9 search of four positions
+  is then run with `start - c` and `start + c`; when it does not change, the script prints a note and goes on, because many
+  parameters act only in some positions (endgames, rare thresholds) or in deeper searches. `--no-check` skips the check.
 - **Each iteration** plays `--pairs` game pairs between two perturbed engines, using the openings and adjudication of
   `tests/match.py`. `--book`, `--epd` and `--no-adj` work as in `match.py`.
 - **Which mode to use:**

@@ -51,11 +51,14 @@ class Eng:
         self.p = subprocess.Popen(resolve(path), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL, bufsize=0)
         self.rd = PipeReader(self.p.stdout); self.buf = b""
-        self.send("uci"); self.wait("uciok", 60)                       # generous: a loaded machine must not turn a slow start into a crash
-        for kv in filter(None, (x.strip() for x in opts.split(";"))):
-            k, _, v = kv.partition("=")
-            self.send(f"setoption name {k.strip()} value {v.strip()}")
-        self.send("isready"); self.wait("readyok", 60)
+        try:
+            self.send("uci"); self.wait("uciok", 60)                   # generous: a loaded machine must not turn a slow start into a crash
+            for kv in filter(None, (x.strip() for x in opts.split(";"))):
+                k, _, v = kv.partition("=")
+                self.send(f"setoption name {k.strip()} value {v.strip()}")
+            self.send("isready"); self.wait("readyok", 60)
+        except RuntimeError:
+            self.p.kill(); raise                                       # an engine that fails the handshake is not left running
 
     def send(self, s):
         try: self.p.stdin.write((s + "\n").encode()); self.p.stdin.flush()

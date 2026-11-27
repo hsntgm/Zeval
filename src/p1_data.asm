@@ -262,8 +262,9 @@ section .bss  align=64
 ; ----              bitboards; eval += entry / 8.  At the end of a search node (not in check, best move not a capture, no mate score, the bound
 ; ----              does not contradict the direction): bonus = clamp((best - eval) * min(depth, 8), +-CORR_BMAX), entry += bonus - entry * |bonus| /
 ; ----              CORR_LIMIT (clamped to +-CORR_LIMIT = 1024 = 128 cp).  Cleared with the other tables (ucinewgame / Clear Hash).
-; ---- -DTUNE (test build, never the release): options T0 .. T63 (non-negative integers) overwrite the numeric parameters in the table
+; ---- -DTUNE (test build, never the release): options T0 .. T84 (integers, negative ones too) overwrite the numeric parameters in the table
 ; ----   tune_def (p5_main.asm; the index is the second argument of LOADT at each use); with TUNE off the parameters are immediates.
+; ----   "uci" declares the options of the slots this build uses (TUSE), so a slot behind a switch that is off is not offered.
 ; ----   One binary serves --optA / --optB of tests/match.py and SPSA.
 %ifndef TTPREFETCH
 %define TTPREFETCH 1
@@ -587,9 +588,17 @@ section .bss  align=64
 
 ; ---- tunable parameters (-DTUNE): LOADT reg, index, default  =  mov reg, [tunetab + 4 * index]  (TUNE)  /  mov reg, default  (release).
 ; ---- The table is initialised from the defaults at start-up (p5_main) and overwritten by "setoption name T<index> value <n>".
+; ---- TUSE index marks a slot as used by the code assembled into this build (every read of tunetab goes through it, so a slot whose code
+; ---- sits behind a switch that is off stays unmarked); "uci" declares an option T<index> for each marked slot (tune_options, p5_main).
 %define TUNEN 96
+%macro TUSE 1
+%ifdef TUNE
+%assign TU_%1 1
+%endif
+%endmacro
 %macro LOADT 3
 %ifdef TUNE
+    TUSE %2
     mov %1, [tunetab+(%2)*4]
 %else
     mov %1, %3
@@ -598,6 +607,7 @@ section .bss  align=64
 ; TCMP / TADD reg, index, default: cmp / add with the option (-DTUNE) or the immediate (release)
 %macro TCMP 3
 %ifdef TUNE
+    TUSE %2
     cmp %1, [tunetab+(%2)*4]
 %else
     cmp %1, %3
@@ -605,6 +615,7 @@ section .bss  align=64
 %endmacro
 %macro TADD 3
 %ifdef TUNE
+    TUSE %2
     add %1, [tunetab+(%2)*4]
 %else
     add %1, %3
@@ -684,8 +695,20 @@ s_uciok:    db "id name Zeval 1.0",10,"id author Hasan CALISIR",10
             db "option name Clear Hash type button",10
             db "option name Threads type spin default 1 min 1 max ", SMPMAX_S, 10
             db "option name Move Overhead type spin default 12 min 0 max 5000",10
+%ifndef TUNE
             db "uciok",10
+%endif
 s_uciok_l   equ $-s_uciok
+%ifdef TUNE
+s_uciend:   db "uciok",10                ; -DTUNE: the T options (tune_options) come between the options above and uciok
+s_uciend_l  equ $-s_uciend
+s_topt1:    db "option name T"
+s_topt1_l   equ $-s_topt1
+s_topt2:    db " type spin default "
+s_topt2_l   equ $-s_topt2
+s_topt3:    db " min -1000000000 max 1000000000",10
+s_topt3_l   equ $-s_topt3
+%endif
 s_readyok:  db "readyok",10
 s_readyok_l equ $-s_readyok
 s_illegal:  db "Illegal move, try again.",10
