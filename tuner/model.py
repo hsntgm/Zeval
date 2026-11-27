@@ -88,7 +88,7 @@ TERM_GROUPS = {"mob": ["mob_n", "mob_b", "mob_r", "mob_q"],
 # ------------------------------------------------------------------------------------------------ evaluation switches
 FLAG_BITS = ["EVAL_FULL", "EV_TUNEMODE", "EV_ENDG", "EV_SCALE", "EV_LAZY", "EV_THRMIN", "EV_THRHANG", "EV_THRPAWN", "EV_THRRESTR", "EV_THRQUEEN",
              "EV_PINS", "EV_KDANGER", "EV_PASSED2", "EV_PAWNS2", "EV_SHELTER", "EV_PBISH", "EV_PMINOR", "EV_PROOK", "EV_PQUEEN", "EV_IMBAL",
-             "EV_SPACE", "EV_INIT", "EV_GRAIN", "EV_SCALE6", "EV_SCALE2", "EV_ENDG2", "EV_KLINES"]     # bit i of EV_CFG = FLAG_BITS[i]
+             "EV_SPACE", "EV_INIT", "EV_GRAIN", "EV_SCALE6", "EV_SCALE2", "EV_ENDG2", "EV_KLINES", "EV_SCMG"]     # bit i of EV_CFG = FLAG_BITS[i]
 CFG = {}
 
 
@@ -178,6 +178,14 @@ def klines_terms(P, E, RQ, tk):
             if tr - (q >> 3) <= 3 and not (E >> (q + 8)) & 1:
                 st += 1
     return op, st, hv
+
+
+def mg_factor(sf, phase):
+    """EV_SCMG (src/eval.asm EVTOTAL): the factor 0..64 of the mg part: 64 without the switch, else sf + (64 - sf) * min(phase, 24) // 24
+    (= 64 with sf = 64 or phase >= 24).  Works on ints and on numpy arrays"""
+    if not CFG.get("EV_SCMG"):
+        return 64 if np.isscalar(sf) else np.full(np.shape(sf), 64)
+    return sf + (64 - sf) * np.minimum(phase, 24) // 24
 
 
 def cfg_mask():
@@ -1170,7 +1178,7 @@ def int_eval(fen, t):
         if CFG.get("EV_INIT"):
             m, g = initiative(m, g, F.aux)
         s = scale_for(F.aux["sinfo"], g) if "sinfo" in F.aux else sf
-        num = 64 * m * ph + s * g * (24 - ph)
+        num = int(mg_factor(s, ph)) * m * ph + s * g * (24 - ph)
         e = -((-num) // 1536) if num < 0 else num // 1536  # truncation towards zero
         if CFG.get("EV_GRAIN"):
             e = int(e / EV_GRAINS) * EV_GRAINS

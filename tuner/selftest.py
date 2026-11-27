@@ -125,7 +125,7 @@ def synth(n, workdir, seed=9):
         W = truth
         mg = sum(v * W[c] for c, v in zip(cols, vals)); eg = sum(v * W[model.NF + c] for c, v in zip(cols, vals))
         p = min(ph, 24) / 24
-        ev.append(p * mg + (1 - p) * sf / 64 * eg + (1 if wtm else -1) * W[model.TEMPO_IDX])
+        ev.append(p * model.mg_factor(sf, min(ph, 24)) / 64 * mg + (1 - p) * sf / 64 * eg + (1 if wtm else -1) * W[model.TEMPO_IDX])
     ev = np.array(ev)
     prob = expit(Ktrue * ev / 400)
     y = np.round(prob, 3)                                         # noise-free labels: tests the machinery (parser, features, K, optimiser, prior), not the statistics

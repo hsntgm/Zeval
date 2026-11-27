@@ -71,7 +71,7 @@ Generated files go into `tuner/data/`, which git ignores.
 | Script | Purpose |
 |---|---|
 | `model.py` | The evaluation as a linear model: position to features, a bit-exact integer copy of the engine's evaluation, the reader for `src/eval.asm`. |
-| `check_eval.py` | Compares `model.py` with the engine's `eval` command on random positions. Must report 0 mismatches. |
+| `check_eval.py` | Compares `model.py` with the engine's `eval` command on random positions (`--endgame N`: and N random endgame positions). Must report 0 mismatches. |
 | `micro_tests.py` | Tests of the whole pipeline against independent references (python-chess, closed forms). |
 | `selftest.py` | Gradient check, recovery of a planted evaluation on synthetic data, apply and rebuild. |
 | `gen_data.py` | Self-play games for training data (rounds of `tests/match.py`, every engine move saved). |
@@ -80,6 +80,7 @@ Generated files go into `tuner/data/`, which git ignores.
 | `tune.py` | The tuner. |
 | `apply_params.py` | Writes tuned values into `src/eval.asm`, with a safety gate and `--revert`. |
 | `fit_scale.py`, `fit_special.py`, `fit_init.py` | Fit the constants that are not linear parameters (endgame scale rules, special endgames, initiative). |
+| `eg_report.py` | Endgame groups (material) of labelled positions: share, loss, the eval factor that fits the results best; `--ab` compares two engines. |
 
 ## Step 0: check the tooling
 

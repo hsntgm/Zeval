@@ -43,7 +43,7 @@ screening only. A result needs about 1,000 games to resolve ±14 Elo, and change
 | `M` | multi-thread |
 | `S` | speed |
 
-Evaluation candidates keep a fixed number, `E1` .. `E21`. The next free number is `E22`.
+Evaluation candidates keep a fixed number, `E1` .. `E24`. The next free number is `E25`.
 
 ---
 
@@ -357,11 +357,14 @@ matches the engine bit for bit. Material, PST, the `evp` term table, the bishop 
 | E16 | `EV_R50` | Fifty-move fade (search side, section 1.2) | 0 | Retest | screening only |
 | E17 | `EV_CORR` | Pawn correction history (search side, section 1.2) | 0 | Retest | −13.2 ± 16.4 (1000, 20 ms) |
 | E20 | `EV_KLINES` | Open lines against the enemy king: open files, storming pawns, rooks and queens on files without a shelter pawn (mg only) | 1 | Default | +6.6 ± 14.0 (1000, 3+0.03); tactics neutral; ablation `X16_NOKLINES` |
+| E22 | `EV_SCMG` | The endgame scale factor acts on the mg part too, more the less material is left (`m = sf + (64 − sf) · ph / 24`); without it a draw rule (sf 0) leaves ph / 24 of the mg score | 1 | Default | +8.2 ± 9.3 (2000, 3+0.03); tactics +11 positions of the hard set; ablation `X17_NOSCMG` |
 
 The other numbers are not evaluation switches:
 
 - **E3** was the combination E1 + E2.
 - **E18 and E19** are `CAPHIST` 1 and 2 (section 1.2).
+- **E23 and E24** were own scale rules for pawn endings and for pieces against pawns, alone and with E22: −8.1 ± 14.9 (690, 3+0.03)
+  and +6.1 ± 9.1 (2000). Closed.
 - **E21** was a joint retune of all tables: −3.8 ± 14.4 (1000, 3+0.03), and +0.3 ± 14.4 when scaled back to the default eval scale. Closed.
 
 ### 2.3 Infrastructure switches
@@ -442,7 +445,7 @@ difference.
 | `CUTVERIFY` | cutNode is 0 / 1 and never set at a PV node (exit 7) | manual |
 | `SEVERIFY` | Exclusion search never in check, never makes the excluded move, never stores, never searches another position (exit 8 .. 11) | `tests/t_singular.py` |
 | `TTFVERIFY` | `tt_pseudo` against the generated list: an accepted move that `gen` does not write (exit 12), a rejected one that it writes (exit 13) | `tests/t_ttfirst.py` |
-| `TTFEAGER` | `TTFIRST` alone (`STAGED` 0) with the list generated and scored at the start: must reproduce `golden_depth8_nostaged.json` | `tests/t_ttfirst.py` |
+| `TTFEAGER` | `TTFIRST` alone (`STAGED` 0, `EV_SCMG` 0) with the list generated and scored at the start: must reproduce `golden_depth8_nostaged.json` | `tests/t_ttfirst.py` |
 | `QSSEEVERIFY` | Every capture marked as losing is refused by `see_ge` too (exit 14) | `tests/t_seereuse.py` |
 | `SFASTVERIFY` | Wherever `EV_SFAST` takes the scale factor 64, `ev_scale` gives 64 too (exit 17) | `tests/t_evspeed.py` |
 | `STAGEVERIFY` | At a node that went through all stages, every move of the list was picked exactly once (exit 15 / 16) | `tests/t_staged.py` |

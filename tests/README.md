@@ -94,9 +94,10 @@ Each script names the build it needs (`sh tests/build1.sh OUT -D...`).
 | `t_see.py` | Static exchange evaluation against an independent python-chess reference. |
 | `t_ppverify.py` | The pre-make legality and check test against make / unmake; `--selftest` builds broken variants. |
 | `t_singular.py` | Rules and counters of the singular-extension exclusion search. |
-| `t_ttfirst.py` | `TTFIRST` alone (`-DSTAGED=0`): eager build = `golden_depth8_nostaged.json`, `tt_pseudo` against `gen` (bit flips and random values), garbage TT moves, lazy build = `golden_depth8_ttfirst.json`; `--selftest` builds 12 broken validators. |
+| `t_ttfirst.py` | `TTFIRST` alone (`-DSTAGED=0`, with `-DEV_SCMG=0`): eager build = `golden_depth8_nostaged.json`, `tt_pseudo` against `gen` (bit flips and random values), garbage TT moves, lazy build = `golden_depth8_ttfirst.json`; `--selftest` builds 12 broken validators. |
 | `t_staged.py` | `STAGED` (the default): golden reproduced, every move of a staged node picked exactly once (`-DSTAGEVERIFY`), garbage killers and TT moves; `--selftest` builds 5 broken versions. |
 | `t_seereuse.py` | `CAPIDX` / `QSSEE`: golden reproduced bit for bit (also with `STAGED` 0 and with `TTFIRST` alone), every capture that `score_moves` marks as losing is refused by `see_ge` too (`-DQSSEEVERIFY`); `--selftest` builds 2 broken marks. |
+| `t_scmg.py` | `EV_SCMG` (the default): the model reproduces the engine with the switch (`check_eval.py --endgame`; `HWPOPCNT` 2 and 0), positions with full material keep their eval, `-DSFASTVERIFY` with the switch; `--selftest` builds 3 broken factors. |
 | `t_evspeed.py` | `EV_SFAST` / `EV_KLBITS` / `EV_BRSIGN` (on by default): golden reproduced, the same eval as all three off on random, endgame-class and king-line positions (`HWPOPCNT` 2 and 0, other constants of scale rule 6), `ev_scale` agrees wherever the fast path takes 64 (`-DSFASTVERIFY`); `--selftest` builds 10 broken versions. |
 | `t_ordering.py` | *report* Move-ordering statistics, optionally against a reference (`ordering_ref_*.json`) or a second build; `--gate` makes it a check. |
 | `t_tune.py` | `-DTUNE`: every read of the option table is marked (`TUSE`), and `uci` declares the options `T<n>` the build uses, with their current values. |

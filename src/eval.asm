@@ -89,6 +89,11 @@
 ;                5. exactly one queen on the board (either side) -> SC_Q0 + SC_Q1 * minor pieces of the side without it
 ;                6. otherwise min(64, SC_G0 + SC_G1 * pawns of s) - SC_G6FL * one
 ;                rules 3 - 6: - SC_FL * one, then 0..64.
+;   EV_SCMG    1 (default).  The scale factor acts on the mg part too, the more the less material is on the board:
+;              e = trunc((m * mg * ph + sf * eg * (24 - ph)) / 1536),  m = sf + (64 - sf) * ph / 24 (integer division; 64 with sf = 64).
+;              0: m = 64, the mg part is never scaled, so in an ending with little material (KR+B - KR: ph 5) a rule that gives sf = 0
+;              leaves ph / 24 of the mg score standing.  Positions with sf = 64 and positions with ph >= 24 have the same value either way.
+;              The SC_* constants below were fitted with 0; a refit with 1 (tuner/fit_scale.py) belongs to the next retune of the tables.
 ;   EV_ATTMAPS 0 (default; forced to 1 by every term that needs it).  1: ev_side also builds the attack maps of its side (pawns, knights, bishops,
 ;              rooks, queens, king, all pieces, squares attacked at least twice; sliders see through nothing) and eval hands every side the maps of the
 ;              other side in its own frame (EV_T* fields).  The terms that need both maps run in a second pass (ev_sideb) after both sides.
@@ -160,6 +165,9 @@
 %endif
 %ifndef HWPOPCNT
 %define HWPOPCNT 2
+%endif
+%ifndef EV_SCMG
+%define EV_SCMG 1                   ; the scale factor acts on the mg part too at low phase (header); 0: on the eg part only
 %endif
 %ifndef EV_SFAST
 %define EV_SFAST 1                  ; speed only: the scale factor 64 of the common case without ev_scale (header)
@@ -2072,6 +2080,22 @@ SHARED kpk_bb, mateg
     add eax, ecx
     DIV1536
 %endmacro
+; ---- TAPER2 mf32, sf32: eax = mg, ecx = eg -> eax = trunc((mf * mg * ph + sf * eg * (24 - ph)) / 1536).  clobbers rcx, rdx, rsi
+%macro TAPER2 2
+    mov edx, [phase]
+    cmp edx, 24
+    jle %%ph
+    mov edx, 24
+%%ph:
+    imul eax, edx
+    mov esi, 24
+    sub esi, edx
+    imul ecx, esi
+    imul eax, %1
+    imul ecx, %2
+    add eax, ecx
+    DIV1536
+%endmacro
 ; ---- DIV1536: eax = trunc(eax / 1536) (signed, towards zero): |n| * 0xAAAAAAAB >> 42 is floor(|n| / 1536) for every |n| < 2^33.  clobbers rdx, rsi
 %define EV_RCP   0xAAAAAAAB
 %define EV_RSH   42
@@ -2087,7 +2111,7 @@ SHARED kpk_bb, mateg
     sub rax, rdx
 %endmacro
 ; ---- EV_CFG: evaluation switches of this build (console command "evalcfg"; tuner/model.py FLAG_BITS has the same bits)
-%assign EV_CFG EVAL_FULL | (EV_TUNEMODE << 1) | (EV_ENDG << 2) | (EV_SCALE << 3) | (EV_LAZY << 4) | (EV_THRMIN << 5) | (EV_THRHANG << 6) | (EV_THRPAWN << 7) | (EV_THRRESTR << 8) | (EV_THRQUEEN << 9) | (EV_PINS << 10) | (EV_KDANGER << 11) | (EV_PASSED2 << 12) | (EV_PAWNS2 << 13) | (EV_SHELTER << 14) | (EV_PBISH << 15) | (EV_PMINOR << 16) | (EV_PROOK << 17) | (EV_PQUEEN << 18) | (EV_IMBAL << 19) | (EV_SPACE << 20) | (EV_INIT << 21) | (EV_GRAIN << 22) | (EV_SCALE6 << 23) | (EV_SCALE2 << 24) | (EV_ENDG2 << 25) | (EV_KLINES << 26)
+%assign EV_CFG EVAL_FULL | (EV_TUNEMODE << 1) | (EV_ENDG << 2) | (EV_SCALE << 3) | (EV_LAZY << 4) | (EV_THRMIN << 5) | (EV_THRHANG << 6) | (EV_THRPAWN << 7) | (EV_THRRESTR << 8) | (EV_THRQUEEN << 9) | (EV_PINS << 10) | (EV_KDANGER << 11) | (EV_PASSED2 << 12) | (EV_PAWNS2 << 13) | (EV_SHELTER << 14) | (EV_PBISH << 15) | (EV_PMINOR << 16) | (EV_PROOK << 17) | (EV_PQUEEN << 18) | (EV_IMBAL << 19) | (EV_SPACE << 20) | (EV_INIT << 21) | (EV_GRAIN << 22) | (EV_SCALE6 << 23) | (EV_SCALE2 << 24) | (EV_ENDG2 << 25) | (EV_KLINES << 26) | (EV_SCMG << 27)
 
 %if EVAL_FULL
 ; ---- helpers of the full evaluation
@@ -3551,9 +3575,29 @@ section .text
 %if EV_SFAST_ON
 %%scaled:
 %endif
+%if EV_SCMG
+    mov r9d, 64                     ; EV_SCMG: factor of the mg part m = sf + (64 - sf) * ph / 24 (64 with sf = 64 or ph = 24)
+    cmp r8d, 64
+    je %%mgf
+    mov eax, [phase]
+    cmp eax, 24
+    jge %%mgf
+    mov ecx, 64
+    sub ecx, r8d
+    imul eax, ecx                   ; (64 - sf) * ph, 0 .. 1472
+    xor edx, edx
+    mov ecx, 24
+    div ecx
+    lea r9d, [rax+r8]
+%%mgf:
+    mov eax, r14d
+    mov ecx, r15d
+    TAPER2 r9d, r8d
+%else
     mov eax, r14d
     mov ecx, r15d
     TAPER r8d
+%endif
 %else
     TAPER
 %endif

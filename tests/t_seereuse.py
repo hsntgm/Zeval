@@ -2,8 +2,8 @@
 """CAPIDX / QSSEE check: two speed-only changes of score_moves and quiescence (see CAPIDX and QSSEE in src/p1_data.asm).
 
 Both keep the search exactly as it is, so:
-  1. golden    both off, CAPIDX alone and both on (the default) reproduce golden_depth8.json bit for bit; with -DSTAGED=0 both on and
-               off reproduce golden_depth8_nostaged.json, with -DSTAGED=0 -DTTFIRST=1 golden_depth8_ttfirst.json (t_golden.py).
+  1. golden    both off, CAPIDX alone and both on (the default) reproduce golden_depth8.json bit for bit; with -DEV_SCMG=0 -DSTAGED=0 both
+               on and off reproduce golden_depth8_nostaged.json, with -DEV_SCMG=0 -DSTAGED=0 -DTTFIRST=1 golden_depth8_ttfirst.json.
   2. verify    -DQSSEE=1 -DQSSEEVERIFY: every capture that score_moves marks "SEE < 0" is also given to see_ge by quiescence; the answer must be
                "no" (exit code 14 = a capture would have been pruned that see_ge accepts).  Random positions and the fixed ones of t_ttfirst.py.
   --selftest   breaks the mark two ways (text patches of a temporary copy); check 2 must catch both (exit code 14).
@@ -54,10 +54,10 @@ def main():
         for name, flags, ref in (("CAPIDX=0 QSSEE=0", ["-DCAPIDX=0", "-DQSSEE=0"], None),
                                  ("CAPIDX alone", ["-DCAPIDX=1", "-DQSSEE=0"], None),
                                  ("CAPIDX+QSSEE (default)", ["-DCAPIDX=1", "-DQSSEE=1"], None),
-                                 ("STAGED=0, CAPIDX=0 QSSEE=0", ["-DSTAGED=0", "-DCAPIDX=0", "-DQSSEE=0"], "golden_depth8_nostaged.json"),
-                                 ("STAGED=0, CAPIDX+QSSEE", ["-DSTAGED=0", "-DCAPIDX=1", "-DQSSEE=1"], "golden_depth8_nostaged.json"),
-                                 ("TTFIRST alone, CAPIDX+QSSEE", ["-DSTAGED=0", "-DTTFIRST=1", "-DCAPIDX=1", "-DQSSEE=1"], "golden_depth8_ttfirst.json"),
-                                 ("TTFIRST alone, CAPIDX=0 QSSEE=0", ["-DSTAGED=0", "-DTTFIRST=1", "-DCAPIDX=0", "-DQSSEE=0"], "golden_depth8_ttfirst.json")):
+                                 ("STAGED=0, CAPIDX=0 QSSEE=0", ["-DSTAGED=0", "-DEV_SCMG=0", "-DCAPIDX=0", "-DQSSEE=0"], "golden_depth8_nostaged.json"),
+                                 ("STAGED=0, CAPIDX+QSSEE", ["-DSTAGED=0", "-DEV_SCMG=0", "-DCAPIDX=1", "-DQSSEE=1"], "golden_depth8_nostaged.json"),
+                                 ("TTFIRST alone, CAPIDX+QSSEE", ["-DSTAGED=0", "-DEV_SCMG=0", "-DTTFIRST=1", "-DCAPIDX=1", "-DQSSEE=1"], "golden_depth8_ttfirst.json"),
+                                 ("TTFIRST alone, CAPIDX=0 QSSEE=0", ["-DSTAGED=0", "-DEV_SCMG=0", "-DTTFIRST=1", "-DCAPIDX=0", "-DQSSEE=0"], "golden_depth8_ttfirst.json")):
             e = T.build(tmp, "g", flags)
             ok, line = golden(e, ref)
             check(ok, f"{name} reproduces {ref or 'golden_depth8.json'} ({line})")

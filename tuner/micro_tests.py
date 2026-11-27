@@ -308,7 +308,8 @@ def synth(n=3000, ngames=300, seed=0):
 def _():
     d = synth(); rng = np.random.default_rng(1); v = rng.normal(0, 40, model.NPAR); s = tune.scores(d, v)
     X = d.X.toarray(); mg, eg, tempo = v[:model.NF], v[model.NF:2 * model.NF], v[model.TEMPO_IDX]
-    ref = d.ph * (X @ mg) + (1 - d.ph) * d.sf / 64.0 * (X @ eg) + d.stm * tempo
+    mf = model.mg_factor(d.sf.astype(np.int64), np.rint(d.ph * 24).astype(np.int64))
+    ref = d.ph * mf / 64.0 * (X @ mg) + (1 - d.ph) * d.sf / 64.0 * (X @ eg) + d.stm * tempo
     ok(np.allclose(s, ref, atol=1e-9), f"max diff {np.abs(s - ref).max()}")
     K = 1.37; p = 1 / (1 + np.exp(-K * ref / 400)); ok(abs(tune.mse(d, s, K) - np.mean((d.y - p) ** 2)) < 1e-12, "mse")
 

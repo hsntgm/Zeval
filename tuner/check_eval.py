@@ -3,9 +3,11 @@
 This is the proof that the feature extraction (piece-square counts and every term of the full evaluation), the integer truncation, the
 tempo / bishop-pair handling and - after apply_params.py + a rebuild - the written tables are right.
 
-usage: python3 tuner/check_eval.py [--engine ./zeval] [--asm src/eval.asm] [--n 3000] [--seed 5]
+usage: python3 tuner/check_eval.py [--engine ./zeval] [--asm src/eval.asm] [--n 3000] [--endgame 0] [--seed 5]
   --engine  default: environment variable ENGINE, else ./zeval (zeval.exe on Windows), like the tests
   --asm     the eval.asm the engine was BUILT from (default src/eval.asm): its parameter values are the model
+  --endgame N more random positions with zero to four pieces besides kings and pawns (scale rules, pawn endings, special endgames,
+            low phase), which the positions of random games reach only rarely
 The evaluation switches are taken from the engine (console command evalcfg).  Positions of a non-linear special evaluation (model.int_eval = None) are checked against model.special_eval
 and counted separately.
 Exit code 0 = 0 mismatches.   needs python-chess (random positions only)."""
@@ -38,6 +40,28 @@ def positions(n, seed):
     return out
 
 
+def endgame_positions(n, seed):
+    """n random legal positions: kings, zero to four pieces and zero to six pawns, pieces and pawn files drawn at random"""
+    rnd = random.Random(seed)
+    PT = {"Q": chess.QUEEN, "R": chess.ROOK, "B": chess.BISHOP, "N": chess.KNIGHT}
+    out = []
+    while len(out) < n:
+        b = chess.Board(None)
+        free = list(range(64)); rnd.shuffle(free)
+        b.set_piece_at(free.pop(), chess.Piece(chess.KING, chess.WHITE)); b.set_piece_at(free.pop(), chess.Piece(chess.KING, chess.BLACK))
+        for _ in range(rnd.choice([0, 1, 1, 2, 2, 3, 4])):
+            b.set_piece_at(free.pop(), chess.Piece(PT[rnd.choice("QRRBBNN")], rnd.random() < 0.5))
+        files = rnd.choice([range(8), range(4), range(4, 8), [0], [7], [rnd.randrange(8)]])
+        for _ in range(rnd.randint(0, 8)):
+            sq = [s for s in free if 8 <= s < 56 and s % 8 in files]
+            if sq:
+                s = rnd.choice(sq); free.remove(s); b.set_piece_at(s, chess.Piece(chess.PAWN, rnd.random() < 0.5))
+        b.turn = rnd.random() < 0.5
+        if b.is_valid():
+            out.append(b.fen())
+    return out
+
+
 def engine_cfg(engine):
     """evaluation switches of the engine build (console command evalcfg); None for an engine without the command"""
     out = subprocess.run(engine, input=b"evalcfg\nquit\n", stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=60).stdout.decode()
@@ -59,6 +83,7 @@ def main():
     ap.add_argument("--engine", default="")
     ap.add_argument("--asm", default=model.ASM)
     ap.add_argument("--n", type=int, default=3000)
+    ap.add_argument("--endgame", type=int, default=0)
     ap.add_argument("--seed", type=int, default=5)
     a = ap.parse_args()
     from _eng import resolve
@@ -67,7 +92,7 @@ def main():
     c = engine_cfg(eng)
     if c is not None:
         model.set_cfg(c)
-    fens = positions(a.n, a.seed)
+    fens = positions(a.n, a.seed) + endgame_positions(a.endgame, a.seed)
     ev = engine_evals(eng, fens)
     mv = [model.int_eval(f, t) for f in fens]
     nspec = sum(m is None for m in mv)

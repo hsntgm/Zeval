@@ -44,6 +44,11 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
 - **Open lines against the enemy king** (`EV_KLINES`, default): on the king's file and its two neighbours, files without any pawn in
   front of the king, own pawns storming within three ranks of it, and own rooks and queens on files without a shelter pawn. Middlegame
   only. Result: +6.6 ± 14.0 Elo in 1000 games at 3+0.03; tactics results unchanged.
+- **Scale factor on the mg part** (`EV_SCMG`, default 1, ablation `X17_NOSCMG`): the endgame scale factor multiplied only the eg part,
+  and the phase counts pieces, so at low material a draw rule left part of the mg score standing (KR+B – KR has phase 5: 5/24 of it).
+  The mg part now gets the factor `sf + (64 − sf) · ph / 24`. +8.2 ± 9.3 Elo in 2 × 1000 games at 3+0.03; tactics: 11 more positions
+  of the hard set. On the tuner's data the drawn rook and queen endings gain most (KR+B – KR, KR+N – KR, KQ – KQ about half of their
+  loss); the two data sets from games at depth 12, where KR+B – KR scores 0.74 for the side with the bishop, do not gain.
 - **Three speed-only switches** (`EV_SFAST`, `EV_KLBITS`, `EV_BRSIGN`, default 1): the scale factor 64 of most positions is taken
   without calling `ev_scale` (`EV_SFAST`; the pawn threshold follows the constants of rule 6), the king-line terms are counted with
   bitboard operations (`EV_KLBITS`), and two sign choices lose their branches (`EV_BRSIGN`). Every evaluation value and the search are
@@ -115,6 +120,14 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
 - **New reference `tests/golden_depth8_nostaged.json`:** the search without stages (`-DSTAGED=0`), which the older references
   (`golden_depth8_zeval10.json` and the others) now need in their build flags.
 - **`tests/t_smp_audit.py`** takes `-D` switches, to audit a build with a switch on.
+- **New reference `tests/golden_depth8_noscmg.json`:** the default without `EV_SCMG`; the older references of the full evaluation
+  (`golden_depth8_nostaged.json`, `golden_depth8_zeval10.json` and the others) now need `-DEV_SCMG=0` in their build flags too.
+- **New `tests/t_scmg.py`:** for `EV_SCMG`: the model reproduces the engine with the switch, positions with full material keep their
+  eval, `-DSFASTVERIFY` with the switch; `--selftest` breaks the factor 3 ways.
+- **`tuner/check_eval.py --endgame N`:** N more random positions with zero to four pieces (pawn endings included), where the scale
+  rules and the low phase act.
+- **New `tuner/eg_report.py`:** the endgame groups (material) of labelled positions with their share, loss and best eval factor, or
+  two engines side by side (`--ab`).
 - **New `tests/t_evspeed.py`:** `EV_SFAST` / `EV_KLBITS` / `EV_BRSIGN` reproduce the golden and the eval of the code they replace on
   random and endgame positions (also with other constants of scale rule 6), and `-DSFASTVERIFY` checks every use of the fast path against
   `ev_scale`; `--selftest` breaks the switches 10 ways.
@@ -147,6 +160,6 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
 
 ### Defaults compared with 1.0
 
-The default engine differs from 1.0 by `CAPHIST` 2, `EV_KLINES` and `STAGED` (and by the speed-only `CAPIDX` / `QSSEE` and
-`EV_SFAST` / `EV_KLBITS` / `EV_BRSIGN`, which search the same tree). The fixed-depth reference search (`tests/golden_depth8.json`, 60 positions at depth 8) changed from 2,484,151 to
-2,397,486 nodes.
+The default engine differs from 1.0 by `CAPHIST` 2, `EV_KLINES`, `STAGED` and `EV_SCMG` (and by the speed-only `CAPIDX` / `QSSEE` and
+`EV_SFAST` / `EV_KLBITS` / `EV_BRSIGN`, which search the same tree). The fixed-depth reference search (`tests/golden_depth8.json`,
+60 positions at depth 8) changed from 2,484,151 to 2,401,114 nodes.

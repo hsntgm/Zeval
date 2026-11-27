@@ -140,7 +140,8 @@ def sf_of(rows, c):
 
 
 def loss(rows, sf, K, tempo, mask=None):
-    e = (64.0 * rows["mg"] * rows["ph"] + sf * rows["eg"] * (24 - rows["ph"])) / 1536.0
+    m = model.mg_factor(sf.astype(np.int64), rows["ph"].astype(np.int64))
+    e = (m * rows["mg"] * rows["ph"] + sf * rows["eg"] * (24 - rows["ph"])) / 1536.0
     e = e + np.where(rows["wtm"] == 1, tempo, -tempo)
     p = 1.0 / (1.0 + np.exp(-K * e / 400.0))
     d = (rows["y"] - p) ** 2 * rows["wt"]

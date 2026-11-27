@@ -32,11 +32,14 @@ from model import NF, NPAR, TEMPO_IDX
 
 class Data:
     """a set of positions: X (csr, white-minus-black counts), phase fraction ph, side-to-move sign, target, endgame scale factor sf (0..64).
-    The eval is  ph * mg + egw * eg + stm * tempo  with  egw = (1 - ph) * sf / 64  (the engine's taper, src/eval.asm)"""
+    The eval is  mgw * mg + egw * eg + stm * tempo  with  mgw = ph * m / 64,  egw = (1 - ph) * sf / 64  (the engine's taper, src/eval.asm;
+    m = model.mg_factor: 64, or with EV_SCMG the scale factor carried over to the mg part at low phase)"""
     def __init__(self, X, ph, stm, y, cp, grp, sf=None):
         self.X, self.ph, self.stm, self.y, self.cp, self.grp = X, ph, stm, y, cp, grp
         self.sf = np.full(X.shape[0], 64.0) if sf is None else np.asarray(sf, np.float64)
         self.egw = (1.0 - ph) * self.sf / 64.0
+        phase = np.rint(ph * 24).astype(np.int64)
+        self.mgw = ph * model.mg_factor(self.sf.astype(np.int64), phase) / 64.0
         self.n = X.shape[0]
 
     def subset(self, sel):
@@ -73,7 +76,7 @@ def scores(d, v):
     """White-view eval (cp, float) of every position for the flat parameter vector v"""
     W = np.stack([v[:NF], v[NF:2 * NF]], 1)
     A = d.X @ W
-    return d.ph * A[:, 0] + d.egw * A[:, 1] + d.stm * v[TEMPO_IDX]
+    return d.mgw * A[:, 0] + d.egw * A[:, 1] + d.stm * v[TEMPO_IDX]
 
 
 def mse(d, s, K, target=None):
@@ -106,12 +109,12 @@ class Objective:
         v = self.full(x)
         W = np.stack([v[:NF], v[NF:2 * NF]], 1)
         A = d.X @ W
-        s = d.ph * A[:, 0] + d.egw * A[:, 1] + d.stm * v[TEMPO_IDX]
+        s = d.mgw * A[:, 0] + d.egw * A[:, 1] + d.stm * v[TEMPO_IDX]
         p = expit(K * s / 400.0)
         e = self.target - p
         f = float(np.mean(e * e))
         g = (-2.0 * e * p * (1.0 - p) * (K / 400.0)) / d.n                   # d f / d s_i
-        G = np.empty((d.n, 2)); G[:, 0] = g * d.ph; G[:, 1] = g * d.egw
+        G = np.empty((d.n, 2)); G[:, 0] = g * d.mgw; G[:, 1] = g * d.egw
         gW = d.X.T @ G
         grad = np.empty(NPAR); grad[:NF] = gW[:, 0]; grad[NF:2 * NF] = gW[:, 1]; grad[TEMPO_IDX] = float(g @ d.stm)
         dv = v - self.v0
