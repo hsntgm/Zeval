@@ -2,8 +2,8 @@
 """CAPIDX / QSSEE check: two speed-only changes of score_moves and quiescence (see CAPIDX and QSSEE in src/p1_data.asm).
 
 Both keep the search exactly as it is, so:
-  1. golden    -DCAPIDX=1 and -DCAPIDX=1 -DQSSEE=1 reproduce golden_depth8.json bit for bit; with -DTTFIRST=1 they reproduce
-               golden_depth8_ttfirst.json (t_golden.py).
+  1. golden    both off, CAPIDX alone and both on (the default) reproduce golden_depth8.json bit for bit; with -DTTFIRST=1 both on and
+               both off reproduce golden_depth8_ttfirst.json (t_golden.py).
   2. verify    -DQSSEE=1 -DQSSEEVERIFY: every capture that score_moves marks "SEE < 0" is also given to see_ge by quiescence; the answer must be
                "no" (exit code 14 = a capture would have been pruned that see_ge accepts).  Random positions and the fixed ones of t_ttfirst.py.
   --selftest   breaks the mark two ways (text patches of a temporary copy); check 2 must catch both (exit code 14).
@@ -51,9 +51,11 @@ def main():
                 ok, rc, why = T.verify_run(e, fens, NODES)
                 check(not ok and rc == 14, f"selftest: caught  [{name}]  (exit code {rc})")
             print("SELFTEST", "FAILED" if fails else "PASSED"); return 1 if fails else 0
-        for name, flags, ref in (("CAPIDX", ["-DCAPIDX=1"], None),
-                                 ("CAPIDX+QSSEE", ["-DCAPIDX=1", "-DQSSEE=1"], None),
-                                 ("TTFIRST+CAPIDX+QSSEE", ["-DTTFIRST=1", "-DCAPIDX=1", "-DQSSEE=1"], os.path.join(HERE, "golden_depth8_ttfirst.json"))):
+        for name, flags, ref in (("CAPIDX=0 QSSEE=0", ["-DCAPIDX=0", "-DQSSEE=0"], None),
+                                 ("CAPIDX alone", ["-DCAPIDX=1", "-DQSSEE=0"], None),
+                                 ("CAPIDX+QSSEE (default)", ["-DCAPIDX=1", "-DQSSEE=1"], None),
+                                 ("TTFIRST+CAPIDX+QSSEE", ["-DTTFIRST=1", "-DCAPIDX=1", "-DQSSEE=1"], os.path.join(HERE, "golden_depth8_ttfirst.json")),
+                                 ("TTFIRST, CAPIDX=0 QSSEE=0", ["-DTTFIRST=1", "-DCAPIDX=0", "-DQSSEE=0"], os.path.join(HERE, "golden_depth8_ttfirst.json"))):
             e = T.build(tmp, "g", flags)
             ok, line = golden(e, ref)
             check(ok, f"{name} reproduces {'golden_depth8_ttfirst.json' if ref else 'golden_depth8.json'} ({line})")

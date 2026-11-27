@@ -11,9 +11,10 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
 - **TT move before move generation** (`TTFIRST`, default 0, candidate `S3_TTFIRST`): `tt_pseudo` checks on the bitboards that the TT
   move is in the generator's list; such a move is searched first, and the other moves are generated and scored only when it does not
   cut. Not a pure speed change: the other moves are scored after the subtree of the TT move and see its history updates.
-- **Two speed-only changes of capture scoring** (`CAPIDX`, `QSSEE`, default 0; candidates `S4_CAPIDX`, `S5_QSSEE`, and `S6_SPEED3` with
-  `TTFIRST`): `score_moves` looks up the capture-history entry of a capture once instead of twice (`CAPIDX`), and quiescence skips the
-  second `see_ge` for a capture that `score_moves` already found to lose (`QSSEE`). The search is unchanged (golden identical).
+- **Two speed-only changes of capture scoring** (`CAPIDX`, `QSSEE`, default 1): `score_moves` looks up the capture-history entry of a
+  capture once instead of twice (`CAPIDX`), and quiescence skips the second `see_ge` for a capture that `score_moves` already found to
+  lose (`QSSEE`). The search is unchanged (golden identical); together 0.9 % less time at the same nodes. Candidate `S4_NOSEEREUSE`
+  turns both off.
 
 - **Capture history** (`CAPHIST` 2, default):
   - A table `[piece][to square][victim]` per thread, cleared by `ucinewgame`.
@@ -129,5 +130,6 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
 
 ### Defaults compared with 1.0
 
-The default engine differs from 1.0 by `CAPHIST` 2 and `EV_KLINES`. The fixed-depth reference search
+The default engine differs from 1.0 by `CAPHIST` 2 and `EV_KLINES` (and by the speed-only `CAPIDX` / `QSSEE`, which search the same
+tree). The fixed-depth reference search
 (`tests/golden_depth8.json`, 60 positions at depth 8) changed from 2,484,151 to 2,382,187 nodes.

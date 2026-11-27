@@ -488,16 +488,17 @@ section .bss  align=64
 %endif
 ; ---- CAPIDX 1 (speed only: the search is the same, tests/golden_depth8*.json are reproduced bit for bit): score_moves (CAPHIST 2 + SEE_ORD) asks
 ; ---- cap_index for the capture history index of a capture to find its SEE threshold, and then again (caph_add) to add the same table entry to the
-; ---- score.  It keeps the table value from the first lookup in ebp instead (no table write happens in between).
+; ---- score.  It keeps the table value from the first lookup in ebp instead (no table write happens in between).  Default 1 (0 = two lookups).
 %ifndef CAPIDX
-%define CAPIDX 0
+%define CAPIDX 1
 %endif
 ; ---- QSSEE 1 (speed only, same search): quiescence prunes a capture with SEE < 0 (SEE_QS) AFTER score_moves has asked see_ge for the same capture
 ; ---- whether SEE >= t, t = CAP_SEEB - (captab >> CAP_SEESH).  When that answer is "no" and t <= 0, then SEE < t <= 0 and the capture is pruned
 ; ---- anyway: score_moves marks such a move (bit 16 of its entry in the move list, only while quiescence scores: [smq] = 1) and quiescence skips the
 ; ---- second see_ge for it.  Needs SEE_QS, SEE_ORD, CAPHIST 2, CAP_SEEPOS 1 and no TUNE build (the threshold is then a constant of the table value).
+; ---- Default 1 (0 = quiescence asks see_ge for every capture).  CAPIDX and QSSEE together: -0.9 % time at the same nodes on the target machine.
 %ifndef QSSEE
-%define QSSEE 0
+%define QSSEE 1
 %endif
 %ifdef SMPTEST
 %undef CH_SHARED
