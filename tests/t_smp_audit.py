@@ -17,13 +17,15 @@ and reads the machine code of the helper object:
   4. the helper object must not call any function that prints, reads stdin or looks at the clock (poll_input, gettime_ms, ob_*, print_*).
   5. self-test (a broken variant must be caught): the same audit on a helper object assembled from a source in which think writes bestmv in the helper flavour MUST fail.
 
-usage: python3 tests/t_smp_audit.py [--bb 0|1]       exit code 0 = everything passed
+usage: python3 tests/t_smp_audit.py [--bb 0|1] [-DNAME=value ...]       exit code 0 = everything passed
+(-D switches build the audited flavour with them, e.g. -DSTAGED=1; the fuzz test builds write their own random state and fail it)
 """
 import os, re, subprocess, sys, tempfile, shutil
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 args = sys.argv[1:]
 BB = args[args.index("--bb") + 1] if "--bb" in args else "1"
+DEFS = [a for a in args if a.startswith("-D")]                       # extra switches, e.g. -DSTAGED=1: the audit of that build
 N = 4
 
 # read-only tables of unit 0 that the search code takes the address of
@@ -44,7 +46,7 @@ def assemble(tmp, srcdir, k, name):
     with open(asm_path, "wb") as o:
         for p in parts: o.write(open(os.path.join(srcdir, p), "rb").read())
     ob = os.path.join(tmp, f"{name}_u{k}.o")
-    sh(["nasm", "-f", "elf64", f"-DUNIT={k}", f"-DNUNITS={N}", f"-DBB={BB}"] + [asm_path, "-o", ob])
+    sh(["nasm", "-f", "elf64", f"-DUNIT={k}", f"-DNUNITS={N}", f"-DBB={BB}"] + DEFS + [asm_path, "-o", ob])
     return ob
 
 def symbols(ob):

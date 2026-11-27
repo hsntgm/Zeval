@@ -8,9 +8,13 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
 
 ### Search
 
-- **TT move before move generation** (`TTFIRST`, default 0, candidate `S3_TTFIRST`): `tt_pseudo` checks on the bitboards that the TT
-  move is in the generator's list; such a move is searched first, and the other moves are generated and scored only when it does not
-  cut. Not a pure speed change: the other moves are scored after the subtree of the TT move and see its history updates.
+- **Staged move picking** (`STAGED`, default 1; implies `TTFIRST`): a node searches the TT move before any move is generated
+  (`tt_pseudo` checks on the bitboards that the move is in the generator's list), then the good captures (generated alone), then the
+  killers (checked with `tt_pseudo`), and generates the full list only for the quiet moves and the bad captures. The order of the score
+  bands is kept, and the moves picked in the first stages are swapped to the front of the full list as `pick()` would have left them.
+  A cutoff before the quiet moves costs no quiet generation and no history lookup: 6.2 % fewer instructions per node with a tree of the
+  same size (900 positions at depth 11), +16.5 ± 9.2 Elo against the search without stages (2 × 1000 games, 3+0.03), same tactics solve
+  rate. Candidates: `S5_NOSTAGED` turns it off, `S3_TTFIRST` keeps only the TT move stage (+1.7 ± 9.2 Elo).
 - **Two speed-only changes of capture scoring** (`CAPIDX`, `QSSEE`, default 1): `score_moves` looks up the capture-history entry of a
   capture once instead of twice (`CAPIDX`), and quiescence skips the second `see_ge` for a capture that `score_moves` already found to
   lose (`QSSEE`). The search is unchanged (golden identical); together 0.9 % less time at the same nodes. Candidate `S4_NOSEEREUSE`
@@ -98,9 +102,15 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
   - `-DHSTAT` (console command `hstat`): counters of continuation-history pruning and of the LMR history step.
   - `-DPCVERIFY` (`pcstat`): ProbCut without cutting, counting how often a would-be cut is refuted.
 - **New `tools/build_testbuilds.sh` / `.bat`:** build the test builds used by `verify_smp.bat` and `verify_units.bat`.
-- **New `tests/t_ttfirst.py`:** for `TTFIRST`: a build that generates eagerly reproduces the default golden, `tt_pseudo` agrees with the
-  generator at every node (also for bit flips and random values), garbage TT moves, a reference `golden_depth8_ttfirst.json`;
-  `--selftest` breaks the validator 12 ways.
+- **New `tests/t_ttfirst.py`:** for `TTFIRST` alone (`STAGED` 0): a build that generates eagerly reproduces the search without stages,
+  `tt_pseudo` agrees with the generator at every node (also for bit flips and random values), garbage TT moves, a reference
+  `golden_depth8_ttfirst.json`; `--selftest` breaks the validator 12 ways.
+- **New `tests/t_staged.py`:** for `STAGED`: the default golden, every move of a staged node picked exactly once (`-DSTAGEVERIFY`),
+  garbage killers and TT moves (`-DSTGFUZZ`, `-DTTFUZZ`); `--selftest` breaks the stages 5 ways.
+- **`ORDSTAT`** counts the position of a cutoff move over the whole node with `STAGED` (the list restarts with each stage).
+- **New reference `tests/golden_depth8_nostaged.json`:** the search without stages (`-DSTAGED=0`), which the older references
+  (`golden_depth8_zeval10.json` and the others) now need in their build flags.
+- **`tests/t_smp_audit.py`** takes `-D` switches, to audit a build with a switch on.
 - **New `tests/t_seereuse.py`:** `CAPIDX` / `QSSEE` reproduce the golden, and every capture marked as losing is refused by `see_ge`
   (`-DQSSEEVERIFY`); `--selftest` breaks the mark 2 ways.
 - **New `tests/t_tune.py`:** every read of the option table is marked, and a `-DTUNE` build declares its `T<n>` options with the current
@@ -130,6 +140,6 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
 
 ### Defaults compared with 1.0
 
-The default engine differs from 1.0 by `CAPHIST` 2 and `EV_KLINES` (and by the speed-only `CAPIDX` / `QSSEE`, which search the same
-tree). The fixed-depth reference search
-(`tests/golden_depth8.json`, 60 positions at depth 8) changed from 2,484,151 to 2,382,187 nodes.
+The default engine differs from 1.0 by `CAPHIST` 2, `EV_KLINES` and `STAGED` (and by the speed-only `CAPIDX` / `QSSEE`, which search
+the same tree). The fixed-depth reference search (`tests/golden_depth8.json`, 60 positions at depth 8) changed from 2,484,151 to
+2,397,486 nodes.

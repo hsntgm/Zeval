@@ -18,7 +18,8 @@
 ; ----   ordc[44+b]   fail-highs at a node with a TT move       ordc[50+b]   of them on the first move
 ; ----   node types t = 0 PV, 1 cut, 2 all (neither):  ordc[56+t] fail-highs, ordc[59+t] of them on the first move
 ; ----   L_ORDQ (frame slot 132, ORDSTAT only) counts the quiet moves picked at the node.
-; ---- ORDCAP (ORDSTAT): the captures at a cutoff.  The scores of the moves picked so far are L_SCORES[0 .. L_IDX - 1] (the cutoff move last);
+; ---- ORDCAP (ORDSTAT): the captures at a cutoff.  The scores of the moves picked so far are L_SCORES[0 .. L_IDX - 1] (the cutoff move last;
+; ----   with STAGED the counts L_OPOS / L_OGC of ORDFIRST);
 ; ----   good capture >= 0x1000000 (not the TT move 0x40000000), bad capture <= -200000.
 ; ----   64 cutoffs by a good capture   65 ... by the first good capture picked   66 ... sum of the good captures tried before it
 ; ----   67 cutoffs by a bad capture    68 ... sum of their positions
@@ -31,6 +32,18 @@
     push rdx
     push rsi
     push rdi
+%if STAGED
+    mov esi, [rbp+L_IDX]            ; STAGED: the earlier picks are not in this list; L_OGC counts the good captures picked
+    mov esi, [rbp+rsi*4+L_SCORES-4]
+    mov ecx, [rbp+L_OPOS]
+    mov edx, [rbp+L_OGC]
+    cmp esi, 0x1000000
+    jl %%e
+    cmp esi, 0x40000000
+    jge %%e
+    dec edx                         ; not the cutoff move itself
+    jmp %%e
+%endif
     mov ecx, [rbp+L_IDX]
     mov esi, [rbp+rcx*4+L_SCORES-4]
     xor edx, edx
@@ -84,7 +97,11 @@
     push rdx
     push rsi
     inc qword [ordc]
+%if STAGED
+    mov eax, [rbp+L_OPOS]           ; the position of the cutoff move in the order of the node
+%else
     mov eax, [rbp+L_IDX]
+%endif
     mov ecx, eax
     cmp eax, 5
     jbe %%h
@@ -97,7 +114,11 @@
     mov ecx, 8
 %%h:inc qword [ordc+rcx*8]
     xor esi, esi                    ; esi = 1 for a first-move cutoff
+%if STAGED
+    cmp dword [rbp+L_OPOS], 1
+%else
     cmp dword [rbp+L_IDX], 1
+%endif
     sete sil
     cmp dword [rbp+L_DEPTH], 5
     jl %%nd
@@ -168,10 +189,16 @@
     pop rax
 %endif
 %endmacro
-; ORDFIRST: after the pick of a move in search() (eax = the move, L_IDX already counts it): the first move of a node with a TT move should be the TT move
+; ORDFIRST: after the pick of a move in search() (eax = the move, L_IDX already counts it): the first move of a node with a TT move should be the TT move.
+; With STAGED it reads L_OPOS, the picks of the node (counted with the good captures among them, L_OGC, right after pick(): the list restarts
+; with each stage, and an exclusion search skips its first pick before ORDFIRST).
 %macro ORDFIRST 0
 %if UNIT == 0
+%if STAGED
+    cmp dword [rbp+L_OPOS], 1
+%else
     cmp dword [rbp+L_IDX], 1
+%endif
     jne %%x
     cmp dword [rbp+L_TTMV], 0
     je %%x
@@ -485,6 +512,11 @@ section .data
 ttfz:       dd 2463534242       ; xorshift32 state (every unit has its own; think resets it, so that searches are reproducible)
 section .text
 %endif
+%ifdef STGFUZZ
+section .data
+stgfz:      dd 88675123         ; STGFUZZ (test build): xorshift32 state for the garbage killers of stage 3
+section .text
+%endif
 
 ; tt_probe(rax = key) -> eax = 1 on hit with rdx = a COPY of the entry's data qword (taken once; the callers decode it, they never look at the
 ; table again), eax = 0 on miss (then rdx is undefined).  Data qword layout = the entry bytes 8..15: move bits 0-15, eval code 16-31, score (i16) 32-47, depth (u8) 48-55,
@@ -728,6 +760,41 @@ caph_add:
     movsx eax, word [captab+rax*2]
     add esi, eax
 .n: ret
+%endif
+%if STAGED
+; stg_kok(edi = killer, esi = TT move) -> eax = 1: STAGED searches the killer in stage 3.  It is not 0, not the TT move, a quiet move here
+; (empty destination, no promotion, no en passant: the moves that score_moves gives a killer score) and in gen's list (tt_pseudo, which
+; rejects castling: a castling killer is searched in stage 4 with its killer score).  Clobbers what tt_pseudo clobbers.
+stg_kok:
+    xor eax, eax
+    test edi, edi
+    jz .r
+    cmp edi, esi
+    je .r
+    test edi, 0xFFFFC000
+    jnz .r                          ; a promotion field (or more than 16 bits)
+    mov ecx, edi
+    and ecx, 127                    ; from
+    mov edx, edi
+    shr edx, 7
+    and edx, 127                    ; to
+    cmp byte [board+rdx], 0
+    jne .r                          ; a capture: stage 2
+    movzx r8d, byte [board+rcx]
+    and r8d, 7
+    cmp r8d, 1
+    jne .t
+    mov r9d, ecx
+    xor r9d, edx
+    and r9d, 7
+    jnz .r                          ; a pawn that moves diagonally onto an empty square: en passant, stage 2
+    mov r9d, edx
+    and r9d, 0x70
+    jz .r                           ; a pawn on the last rank: a promotion
+    cmp r9d, 0x70
+    je .r
+.t: jmp tt_pseudo
+.r: ret
 %endif
 score_moves:
     push rbx
@@ -1782,6 +1849,25 @@ qsearch:
 %assign SF_TOP SF_TOP+2048
 %endif
 %endif
+%if STAGED
+%assign L_STG    SF_TOP            ; STAGED: 0 = no stages at this node; 2 / 3 / 4 = the stage the list holds
+%assign L_TTDONE SF_TOP+4          ; STAGED: 1 = the TT move was searched in stage 1
+%assign L_NPK    SF_TOP+8          ; STAGED: moves picked in stages 1 .. 3 (in L_PK, in the order of the picks)
+%assign L_K1     SF_TOP+12         ; STAGED: killer 1 / 2 of this ply at the start of the node (see stage 3)
+%assign L_K2     SF_TOP+16
+%assign L_PK     SF_TOP+32         ; STAGED: ... the moves (1 + STG_MAXG + 2)
+%assign SF_TOP SF_TOP+32+((4*(STG_MAXG+3)+15)/16)*16
+%ifdef ORDSTAT
+%assign L_OPOS   SF_TOP            ; ORDSTAT with STAGED: moves picked at the node (L_IDX restarts with each stage)
+%assign L_OGC    SF_TOP+4          ; ORDSTAT with STAGED: good captures among them
+%assign SF_TOP SF_TOP+16
+%endif
+%ifdef STAGEVERIFY
+%assign L_NLOG   SF_TOP            ; STAGEVERIFY: moves picked at this node
+%assign L_LOG    SF_TOP+16         ; STAGEVERIFY: ... the moves
+%assign SF_TOP SF_TOP+16+4*STG_LOGN
+%endif
+%endif
 %if CAPHIST
 %assign L_NCAP   SF_TOP            ; CAPHIST: captures searched so far at this node (at most 16)
 %assign L_CAPH   SF_TOP+4          ; CAPHIST: captab of the current move, read before it is made (CAP_LMR; no entry: 0x7FFFFFFF)
@@ -2575,6 +2661,36 @@ search:
     ; ---- TTFIRST (see p1_data.asm): a TT move that tt_pseudo accepts is searched before anything is generated.  The list holds only that move
     ; ---- (score 0x40000000, as score_moves would give it); .tfgen below fills in the rest when the loop runs out of moves.
     mov dword [rbp+L_LAZY], 0
+%if STAGED
+    mov dword [rbp+L_STG], 0
+    mov dword [rbp+L_TTDONE], 0
+    mov dword [rbp+L_NPK], 0
+    mov eax, [ply]                  ; the killers as score_moves would see them at the start of the node (an exclusion search of the TT
+    mov ecx, [killers+rax*8]        ; move in stage 1 may store new ones at this ply)
+    mov [rbp+L_K1], ecx
+    mov ecx, [killers+rax*8+4]
+    mov [rbp+L_K2], ecx
+%ifdef STGFUZZ
+    mov eax, [stgfz]                ; test build: both killers replaced by garbage (16 bits, the range of real moves)
+    mov ecx, eax
+    shl ecx, 13
+    xor eax, ecx
+    mov ecx, eax
+    shr ecx, 17
+    xor eax, ecx
+    mov ecx, eax
+    shl ecx, 5
+    xor eax, ecx
+    mov [stgfz], eax
+    movzx ecx, ax
+    mov [rbp+L_K1], ecx
+    shr eax, 16
+    mov [rbp+L_K2], eax
+%endif
+%ifdef STAGEVERIFY
+    mov dword [rbp+L_NLOG], 0
+%endif
+%endif
 %ifdef TTFVERIFY
     lea rdi, [rbp+L_MOVES]          ; test build: tt_pseudo against gen for the moves of this node, their bit flips and random values
     xor esi, esi
@@ -2671,8 +2787,25 @@ search:
     mov dword [rbp+L_SCORES+16], 0x80000000
     mov dword [rbp+L_N], 1
     mov dword [rbp+L_LAZY], 1
+%if STAGED
+    mov dword [rbp+L_TTDONE], 1
+%endif
     jmp .tfset
 .tfn:
+%if STAGED
+    cmp dword [rbp+L_ROOT], 0       ; STAGED: a node without a TT move starts with stage 2 (an empty list that runs out at once)
+    jne .stn
+%if SING
+    cmp dword [rbp+L_EXCL], 0
+    jne .stn
+%endif
+    cmp dword [rbp+L_TTMV], 0       ; a TT move that tt_pseudo rejects (castling, or a damaged entry): no stages, everything at once,
+    jne .stn                        ; so that a castling TT move is still searched first
+    mov dword [rbp+L_N], 0
+    mov dword [rbp+L_LAZY], 1
+    jmp .tfset
+.stn:
+%endif
 %endif
     lea rdi, [rbp+L_MOVES]
     xor esi, esi
@@ -2700,6 +2833,10 @@ search:
     mov dword [rbp+L_IDX], 0
 %ifdef ORDSTAT
     mov dword [rbp+L_ORDQ], 0
+%if STAGED
+    mov dword [rbp+L_OPOS], 0
+    mov dword [rbp+L_OGC], 0
+%endif
 %endif
     mov dword [rbp+L_BEST], -INF
     mov eax, [rbp+L_ALPHA]
@@ -2714,6 +2851,40 @@ search:
     call pick
     mov [rbp+L_MV], eax
     inc dword [rbp+L_IDX]
+%ifdef ORDSTAT
+%if STAGED
+    inc dword [rbp+L_OPOS]          ; ORDSTAT: the picks of the node, and the good captures among them (see ORDFIRST)
+    mov ecx, [rbp+L_IDX]
+    mov ecx, [rbp+rcx*4+L_SCORES-4]
+    cmp ecx, 0x1000000
+    jl .og0
+    cmp ecx, 0x40000000
+    jge .og0
+    inc dword [rbp+L_OGC]
+.og0:
+%endif
+%endif
+%ifdef STAGEVERIFY
+    mov ecx, [rbp+L_NLOG]           ; test build: every pick of the node
+    cmp ecx, STG_LOGN
+    jae .svf16
+    mov [rbp+rcx*4+L_LOG], eax
+    inc dword [rbp+L_NLOG]
+%endif
+%if STAGED
+    mov ecx, [rbp+L_STG]            ; STAGED: the picks of stages 1 .. 3, in order (stage 4 repeats their swaps on the full list)
+    cmp ecx, 4
+    je .pk0
+    test ecx, ecx
+    jnz .pk1
+    cmp dword [rbp+L_LAZY], 0       ; L_STG 0: stage 1 (the TT move), or a node without stages (root, exclusion search)
+    je .pk0
+.pk1:
+    mov ecx, [rbp+L_NPK]
+    mov [rbp+rcx*4+L_PK], eax
+    inc dword [rbp+L_NPK]
+.pk0:
+%endif
 %if SING
     cmp eax, [rbp+L_EXCL]           ; exclusion search: the excluded move is not searched and not counted
     je .mloop
@@ -3624,8 +3795,256 @@ search:
     syscall
 %endif
 %endif
+%if STAGED
+    ; ---- STAGED (see p1_data.asm): the next stage, when the list of the current one is used up without a cutoff
+.stg2:                              ; good captures and queen promotions
+    mov dword [rbp+L_LAZY], 0
+    mov dword [rbp+L_STG], 2
+    lea rdi, [rbp+L_MOVES]
+    mov esi, 1
+    call gen
+    lea rcx, [rbp+L_MOVES]
+    sub rax, rcx
+    shr eax, 2
+    mov [rbp+L_N], eax
+    lea rdi, [rbp+L_MOVES]
+    lea rsi, [rbp+L_SCORES]
+    mov edx, eax
+    mov ecx, [rbp+L_TTMV]
+    call score_moves
+    mov r9d, [rbp+L_TTMV]           ; r9d = the TT move when stage 1 searched it (moves are never 0)
+    cmp dword [rbp+L_TTDONE], 0
+    jne .s2a
+    xor r9d, r9d
+.s2a:
+    mov r10d, [rbp+L_N]
+    xor ecx, ecx                    ; read index
+    xor edx, edx                    ; write index: the list keeps the good ones, in their order
+.s2l:
+    cmp ecx, r10d
+    jge .s2e
+    mov eax, [rbp+rcx*4+L_MOVES]
+    cmp eax, r9d
+    je .s2n                         ; the TT move: searched in stage 1
+    mov r8d, [rbp+rcx*4+L_SCORES]
+    cmp r8d, 0x800000
+    jl .s2n                         ; behind the killers (a capture that loses material): stage 4 generates and scores it again
+    cmp edx, STG_MAXG
+    jae .stgfull
+    mov [rbp+rdx*4+L_MOVES], eax
+    mov [rbp+rdx*4+L_SCORES], r8d
+    inc edx
+.s2n:
+    inc ecx
+    jmp .s2l
+.s2e:
+    mov [rbp+L_N], edx
+    ; stable insertion sort by score, highest first: equal scores keep gen's order, as at a node that picks the captures out of the full list
+    ; (there the move that pick() swaps away is nearly always a quiet move; here it would be another capture)
+    mov ecx, 1
+.s2o:
+    cmp ecx, edx
+    jge .s2z
+    mov eax, [rbp+rcx*4+L_MOVES]
+    mov r8d, [rbp+rcx*4+L_SCORES]
+    mov r9d, ecx
+.s2i:
+    test r9d, r9d
+    jz .s2p
+    cmp [rbp+r9*4+L_SCORES-4], r8d
+    jge .s2p                        ; >= : an equal score stays in front
+    mov r10d, [rbp+r9*4+L_MOVES-4]
+    mov [rbp+r9*4+L_MOVES], r10d
+    mov r10d, [rbp+r9*4+L_SCORES-4]
+    mov [rbp+r9*4+L_SCORES], r10d
+    dec r9d
+    jmp .s2i
+.s2p:
+    mov [rbp+r9*4+L_MOVES], eax
+    mov [rbp+r9*4+L_SCORES], r8d
+    inc ecx
+    jmp .s2o
+.s2z:
+    mov dword [rbp+rdx*4+L_SCORES], 0x80000000     ; pick() reads up to 3 entries past n
+    mov dword [rbp+rdx*4+L_SCORES+4], 0x80000000
+    mov dword [rbp+rdx*4+L_SCORES+8], 0x80000000
+    mov dword [rbp+rdx*4+L_SCORES+12], 0x80000000
+    mov dword [rbp+L_IDX], 0
+    jmp .mloop
+.stg3:                              ; killers: the scores score_moves gives them (killer 1 before killer 2)
+    mov dword [rbp+L_STG], 3
+    mov dword [rbp+L_N], 0
+    mov eax, [rbp+L_K1]             ; killer 1 a castling move (tt_pseudo cannot accept it): both killers wait for stage 4, where they keep
+    mov ecx, eax                    ; their order (killer 2 first would change it)
+    and ecx, 127
+    movzx edx, byte [board+rcx]
+    and edx, 7
+    cmp edx, 6
+    jne .s3k
+    shr eax, 7
+    and eax, 127
+    sub eax, ecx
+    cmp eax, 2
+    je .stg4
+    cmp eax, -2
+    je .stg4
+.s3k:
+    mov edi, [rbp+L_K1]
+    mov esi, [rbp+L_TTMV]
+    call stg_kok
+    test eax, eax
+    jz .s3b
+    mov eax, [rbp+L_K1]
+    mov [rbp+L_MOVES], eax
+    mov dword [rbp+L_SCORES], 0x800000
+    mov dword [rbp+L_N], 1
+.s3b:
+    mov edi, [rbp+L_K2]
+    mov esi, [rbp+L_TTMV]
+    call stg_kok
+    test eax, eax
+    jz .s3c
+    mov eax, [rbp+L_K2]
+    mov ecx, [rbp+L_N]
+    test ecx, ecx
+    jz .s3d
+    cmp eax, [rbp+L_MOVES]          ; the same move twice in the killer slots is searched once
+    je .s3c
+.s3d:
+    mov [rbp+rcx*4+L_MOVES], eax
+    mov dword [rbp+rcx*4+L_SCORES], 0x7FFFFF
+    inc dword [rbp+L_N]
+.s3c:
+    mov edx, [rbp+L_N]
+    test edx, edx
+    jz .stg4
+    mov dword [rbp+rdx*4+L_SCORES], 0x80000000
+    mov dword [rbp+rdx*4+L_SCORES+4], 0x80000000
+    mov dword [rbp+rdx*4+L_SCORES+8], 0x80000000
+    mov dword [rbp+rdx*4+L_SCORES+12], 0x80000000
+    mov dword [rbp+L_IDX], 0
+    jmp .mloop
+.stg4:                              ; the rest: the full list, with the picks of stages 1 .. 3 swapped to its front as pick() would have done
+    mov dword [rbp+L_STG], 4
+    lea rdi, [rbp+L_MOVES]
+    xor esi, esi
+    call gen
+    lea rcx, [rbp+L_MOVES]
+    sub rax, rcx
+    shr eax, 2
+    mov [rbp+L_N], eax
+    mov r10d, eax
+    xor r8d, r8d                    ; j: the j-th pick goes to index j (the same permutation as at a node that picks from the full list)
+.s4j:
+    cmp r8d, [rbp+L_NPK]
+    jge .s4e
+    mov eax, [rbp+r8*4+L_PK]
+    mov ecx, r8d
+.s4f:
+    cmp ecx, r10d
+    jge .s4x                        ; (not in the list: cannot happen, tt_pseudo is sound)
+    cmp [rbp+rcx*4+L_MOVES], eax
+    je .s4s
+    inc ecx
+    jmp .s4f
+.s4s:
+    mov edx, [rbp+r8*4+L_MOVES]
+    mov [rbp+rcx*4+L_MOVES], edx
+    mov [rbp+r8*4+L_MOVES], eax
+    inc r8d
+    jmp .s4j
+.s4x:
+    mov [rbp+L_NPK], r8d            ; keep the picks found so far; the rest of the list is searched
+.s4e:
+    mov eax, [rbp+L_NPK]
+    mov [rbp+L_IDX], eax
+    lea rdi, [rbp+rax*4+L_MOVES]
+    lea rsi, [rbp+rax*4+L_SCORES]
+    mov edx, [rbp+L_N]
+    sub edx, eax
+    mov ecx, [rbp+L_TTMV]
+    call score_moves
+    jmp .mloop
+.stgfull:                           ; more than STG_MAXG good captures (not seen in games): everything at once, as with TTFIRST alone
+    mov dword [rbp+L_STG], 4
+    lea rdi, [rbp+L_MOVES]
+    xor esi, esi
+    call gen
+    lea rcx, [rbp+L_MOVES]
+    sub rax, rcx
+    shr eax, 2
+    mov [rbp+L_N], eax
+    lea rdi, [rbp+L_MOVES]
+    lea rsi, [rbp+L_SCORES]
+    mov edx, eax
+    mov ecx, [rbp+L_TTMV]
+    call score_moves
+    mov dword [rbp+L_IDX], 0
+    cmp dword [rbp+L_TTDONE], 0
+    je .mloop
+    lea rdi, [rbp+L_MOVES]
+    lea rsi, [rbp+L_SCORES]
+    xor edx, edx
+    mov ecx, [rbp+L_N]
+    call pick                       ; the TT move to index 0 (searched in stage 1)
+    mov dword [rbp+L_IDX], 1
+    jmp .mloop
+%ifdef STAGEVERIFY
+.svf15:
+    mov eax, 231                    ; exit_group
+    mov edi, 15
+    syscall
+.svf16:
+    mov eax, 231
+    mov edi, 16
+    syscall
+%endif
+%endif
 .mdone:
-%if TTFIRST
+%if STAGED
+    cmp dword [rbp+L_LAZY], 0
+    jne .stg2
+    mov eax, [rbp+L_STG]
+    cmp eax, 2
+    je .stg3
+    cmp eax, 3
+    je .stg4
+%ifdef STAGEVERIFY
+    cmp eax, 4                      ; test build: all four stages done without a cutoff: every move of gen's list was picked exactly once
+    jne .svx
+    lea rdi, [rbp+L_MOVES]
+    xor esi, esi
+    call gen
+    lea rcx, [rbp+L_MOVES]
+    sub rax, rcx
+    shr eax, 2
+    mov r10d, eax
+    cmp r10d, [rbp+L_NLOG]
+    jne .svf16
+    xor r8d, r8d
+.sv1:
+    cmp r8d, r10d
+    jge .svx
+    mov edx, [rbp+r8*4+L_MOVES]
+    xor ecx, ecx
+    xor r9d, r9d
+.sv2:
+    cmp ecx, r10d
+    jge .sv3
+    cmp [rbp+rcx*4+L_LOG], edx
+    jne .sv4
+    inc r9d
+.sv4:
+    inc ecx
+    jmp .sv2
+.sv3:
+    cmp r9d, 1
+    jne .svf15
+    inc r8d
+    jmp .sv1
+.svx:
+%endif
+%elif TTFIRST
     cmp dword [rbp+L_LAZY], 0
     jne .tfgen
 %endif

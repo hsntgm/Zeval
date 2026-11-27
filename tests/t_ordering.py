@@ -28,7 +28,8 @@ usage:  t_ordering.py ENGINE [--depth 10] [--n 60] [--save ref.json] [--ref ref.
         (+0.19 / +1.95 / -0.23 pp, the gate passes); broken ordering is far bigger (SEE_ORD=0: qsearch -12.6 pp, nodes +29 %;
         CH_BL=0: quiet ranks 1-3 -1.1 pp) and fails.
         References (depth 10, 60 positions): tests/ordering_ref_nosing_nocont.json (-DCONTHIST=0 -DSING=0), tests/ordering_ref_nosing.json
-        (-DSING=0), tests/ordering_ref_sem2.json (-DSE_M=2 -DSE_TTD=3), tests/ordering_ref_zeval10.json (the search of Zeval 1.0).
+        (-DSING=0), tests/ordering_ref_sem2.json (-DSE_M=2 -DSE_TTD=3), tests/ordering_ref_zeval10.json (the search of Zeval 1.0); all
+        recorded before staged move picking: compare them with a -DSTAGED=0 build.
 exit codes: 0 report (and the gate, when asked for, passed), 1 instrument check failed / gate failed, 2 engine / harness could not be run
             (also: the engine has no "ordstat" command, i.e. it is not an ORDSTAT build).
 Instrument checks: the counter sums agree, the TT move is the first move picked at (nearly) every node that has one, and a second run of the first

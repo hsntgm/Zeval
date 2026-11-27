@@ -4,15 +4,16 @@
 A fixed-depth, single-threaded search is deterministic, so every correct build prints the same
 score / node count / best move per iteration ("pv" is the full line and bestmove may carry "ponder":
 only the first pv move and the bestmove move are compared; tests/t_pv.py checks the rest of the line).  Reference files (60 positions, depth 8):
-  golden_depth8.json                    current default build, recorded from the Linux ELF (2,382,187 nodes)
-  golden_depth8_ttfirst.json            build with -DTTFIRST=1 (2,400,423 nodes; also with -DCAPIDX=1 -DQSSEE=1)
-  golden_depth8_noklines.json           build with -DEV_KLINES=0 (2,445,720 nodes)
-  golden_depth8_zeval10.json            build with -DCAPHIST=0 -DEV_KLINES=0: the search of Zeval 1.0 (2,484,151 nodes)
-  golden_depth8_sem2.json               build with -DCAPHIST=0 -DSE_M=2 -DSE_TTD=3 -DEV_KLINES=0 (2,713,101 nodes)
-  golden_depth8_nosing.json             build with -DCAPHIST=0 -DSING=0 -DEV_KLINES=0 (1,945,787 nodes)
-  golden_depth8_nosing_nocont.json      build with -DCAPHIST=0 -DCONTHIST=0 -DSING=0 -DEV_KLINES=0 (1,931,516 nodes)
-  golden_depth8_evalfull0.json          build with -DCAPHIST=0 -DEVAL_FULL=0 -DSING=0 (1,806,878 nodes)
-  golden_depth8_dev8search.json         build with -DDEV8SEARCH -DEVAL_FULL=0 (2,512,457 nodes)
+  golden_depth8.json                    current default build, recorded from the Linux ELF (2,397,486 nodes)
+  golden_depth8_nostaged.json           build with -DSTAGED=0 (2,382,187 nodes; also with -DSTAGED=0 -DTTFIRST=1 -DTTFEAGER)
+  golden_depth8_ttfirst.json            build with -DSTAGED=0 -DTTFIRST=1 (2,400,423 nodes; also with CAPIDX / QSSEE on or off)
+  golden_depth8_noklines.json           build with -DSTAGED=0 -DEV_KLINES=0 (2,445,720 nodes)
+  golden_depth8_zeval10.json            build with -DSTAGED=0 -DCAPHIST=0 -DEV_KLINES=0: the search of Zeval 1.0 (2,484,151 nodes)
+  golden_depth8_sem2.json               build with -DSTAGED=0 -DCAPHIST=0 -DSE_M=2 -DSE_TTD=3 -DEV_KLINES=0 (2,713,101 nodes)
+  golden_depth8_nosing.json             build with -DSTAGED=0 -DCAPHIST=0 -DSING=0 -DEV_KLINES=0 (1,945,787 nodes)
+  golden_depth8_nosing_nocont.json      build with -DSTAGED=0 -DCAPHIST=0 -DCONTHIST=0 -DSING=0 -DEV_KLINES=0 (1,931,516 nodes)
+  golden_depth8_evalfull0.json          build with -DSTAGED=0 -DCAPHIST=0 -DEVAL_FULL=0 -DSING=0 (1,806,878 nodes)
+  golden_depth8_dev8search.json         build with -DSTAGED=0 -DDEV8SEARCH -DEVAL_FULL=0 (2,512,457 nodes)
   golden_depth8_0x88.json               0x88 move generator: build with -DBB=0 -DDEV8SEARCH (2,575,085 nodes)
   golden_depth8_0x88_nosee.json         0x88 move generator without SEE: build with -DBB=0 -DDEV8SEARCH and every SEE_* switch 0
                                         (-DSEE_QS=0 -DSEE_ORD=0 -DSEE_BADLAST=0 -DSEE_PC=0 -DSEE_CM=0 -DSEE_PQ=0 -DSEE_QM=0; 3,520,068 nodes)

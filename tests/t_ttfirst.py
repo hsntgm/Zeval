@@ -2,15 +2,16 @@
 """TTFIRST check: the TT move searched before any move is generated (see TTFIRST in src/p1_data.asm).
 
 TTFIRST 1 changes the search on purpose (the other moves are scored after the subtree of the TT move, so they see its history updates);
-what must NOT change is everything else.  Four checks, each against a different way of getting it wrong:
+what must NOT change is everything else.  Every build here has -DSTAGED=0: TTFIRST alone (STAGED 1, the default, turns TTFIRST on and has
+its own test, t_staged.py).  Four checks, each against a different way of getting it wrong:
   1. plumbing  -DTTFIRST=1 -DTTFEAGER: the one-move list, the singular test, the hand-over to the full list and the pick permutation are
      exercised exactly as in TTFIRST 1, but the list is generated and scored at the start of the node as always.  This build must reproduce
-     golden_depth8.json bit for bit (tests/t_golden.py).  A wrong MCNT / index / swap / skipped move shows up as a different node count.
+     golden_depth8_nostaged.json bit for bit (tests/t_golden.py).  A wrong MCNT / index / swap / skipped move shows up as a different node count.
   2. validator -DTTFIRST=1 -DTTFVERIFY: at every node tt_pseudo is compared with gen: for every move of the node, its 16 one-bit flips and 64
      random 16-bit values, "accepted" must mean "in gen's list" (exit code 12 = unsound: a move would be made without being generated) and
      "rejected" must mean "not in the list" except for castling moves (exit code 13 = incomplete: only the speed-up is lost).
   3. garbage   -DTTFIRST=1 -DTTFUZZ: every table move is a random 16-bit number.  bestmove is always legal, no crash, no hang.
-  4. reference tests/golden_depth8_ttfirst.json is the search of the default-off switch turned on (build -DTTFIRST=1): it must be reproduced
+  4. reference tests/golden_depth8_ttfirst.json is the search of TTFIRST alone (build -DSTAGED=0 -DTTFIRST=1): it must be reproduced
      exactly (same kind of check as the other golden_depth8_*.json files).
   --selftest   breaks tt_pseudo twelve ways (text patches of a temporary copy); check 2 must catch every one of them.
 Linux only: needs nasm, ld, python-chess.   usage:  python3 tests/t_ttfirst.py [--positions 120] [--nodes 5000] [--quick] [--selftest]
@@ -125,25 +126,26 @@ def main():
     tmp = tempfile.mkdtemp()
     try:
         if SELFTEST:
-            good = build(tmp, "good", ["-DTTFIRST=1", "-DTTFVERIFY"])
+            good = build(tmp, "good", ["-DSTAGED=0", "-DTTFIRST=1", "-DTTFVERIFY"])
             ok, rc, why = verify_run(good, fens, NODES)
             check(ok, f"selftest: the unbroken validator passes on {len(fens)} positions")
             for name, old, new in BREAKS:
-                e = build(tmp, "broken", ["-DTTFIRST=1", "-DTTFVERIFY"], (old, new))
+                e = build(tmp, "broken", ["-DSTAGED=0", "-DTTFIRST=1", "-DTTFVERIFY"], (old, new))
                 ok, rc, why = verify_run(e, fens, NODES)
                 check(not ok and rc in (12, 13), f"selftest: caught  [{name}]  (exit code {rc})")
             print("SELFTEST", "FAILED" if fails else "PASSED"); return 1 if fails else 0
 
         # 1. plumbing: the eager build is the golden search
-        eager = build(tmp, "eager", ["-DTTFIRST=1", "-DTTFEAGER"])
-        r = subprocess.run([sys.executable, os.path.join(HERE, "t_golden.py"), eager], capture_output=True, text=True)
-        check(r.returncode == 0 and "IDENTICAL" in r.stdout, "TTFEAGER reproduces golden_depth8.json (" + (r.stdout.strip().splitlines() or ["?"])[-1] + ")")
+        eager = build(tmp, "eager", ["-DSTAGED=0", "-DTTFIRST=1", "-DTTFEAGER"])
+        r = subprocess.run([sys.executable, os.path.join(HERE, "t_golden.py"), eager, os.path.join(HERE, "golden_depth8_nostaged.json")],
+                           capture_output=True, text=True)
+        check(r.returncode == 0 and "IDENTICAL" in r.stdout, "TTFEAGER reproduces golden_depth8_nostaged.json (" + (r.stdout.strip().splitlines() or ["?"])[-1] + ")")
         # 2. validator against gen
-        ver = build(tmp, "verify", ["-DTTFIRST=1", "-DTTFVERIFY"])
+        ver = build(tmp, "verify", ["-DSTAGED=0", "-DTTFIRST=1", "-DTTFVERIFY"])
         ok, rc, why = verify_run(ver, fens, NODES)
         check(ok, f"tt_pseudo agrees with gen at every node of {len(fens)} positions (go nodes {NODES})" + ("" if ok else f": exit code {rc} at {why}"))
         # 3. garbage table moves
-        fuzz = build(tmp, "fuzz", ["-DTTFIRST=1", "-DTTFUZZ"])
+        fuzz = build(tmp, "fuzz", ["-DSTAGED=0", "-DTTFIRST=1", "-DTTFUZZ"])
         bad = 0
         for f in positions(40 if QUICK else 100, 23):
             for go in ("go depth 1", "go depth 3", "go nodes 4000"):
@@ -154,7 +156,7 @@ def main():
                     bad += 1; print("  bad:", f, go, rc, m and m[1])
         check(bad == 0, "TTFUZZ (every TT move garbage): legal bestmove, no crash")
         # 4. the lazy search against its own reference
-        lazy = build(tmp, "lazy", ["-DTTFIRST=1"])
+        lazy = build(tmp, "lazy", ["-DSTAGED=0", "-DTTFIRST=1"])
         gold = os.path.join(HERE, "golden_depth8_ttfirst.json")
         if os.path.exists(gold):
             r = subprocess.run([sys.executable, os.path.join(HERE, "t_golden.py"), lazy, gold], capture_output=True, text=True)

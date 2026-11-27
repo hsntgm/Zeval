@@ -486,6 +486,29 @@ section .bss  align=64
 %ifndef TTFIRST
 %define TTFIRST 0
 %endif
+; ---- STAGED 1 (implies TTFIRST): the moves of a node come in stages, each generated and scored only when the stage before it is used up
+; ---- without a cutoff:
+; ----   1  the TT move (TTFIRST)
+; ----   2  the good captures and queen promotions: gen mode 1, scored, sorted by score (stable: equal scores keep gen's order, as when they
+; ----      are picked out of the full list); a capture that score_moves puts behind the killers waits for stage 4
+; ----   3  the killers of the node start that are quiet moves here and pass tt_pseudo, killer 1 first (a castling killer 1: none, both wait
+; ----      for stage 4, which keeps their order)
+; ----   4  the full list (gen mode 0) with the moves picked in stages 1 .. 3 swapped to its front in the order they were picked, as pick()
+; ----      leaves a list it picked them from; the rest is scored then and searched (bad captures and under-promotions included)
+; ---- The order is the order of the score bands (TT, good captures, killers, quiet moves, bad captures), and inside a band that of
+; ---- score_moves.  The root, an exclusion search and a node whose TT move tt_pseudo rejects (castling, or a damaged entry) have no stages.
+; ---- A cutoff in stages 1 .. 3 costs no quiet move generation and no history lookup: -6.2 % instructions per node; the tree has the same
+; ---- size (900 positions, depth 11: +0.3 %, 95 % interval -1.6 .. +2.2 %).  The quiet moves are scored after the subtrees of the captures
+; ---- and killers, so it is a search change.  Default 1: +16.5 +-9.2 Elo against STAGED 0 (2 x 1000 games, 3+0.03), tactics unchanged.
+; ---- 0 = every node generates and scores its whole list at once (tests/golden_depth8_nostaged.json; candidate S5_NOSTAGED).
+; ---- -DSTAGEVERIFY (test build): at a node that went through all four stages, every move of gen's list must have been picked exactly once
+; ---- (exit code 15: a move missing or picked twice, 16: more or fewer picks than moves).  -DSTGFUZZ (test build): both killers of stage 3
+; ---- are garbage.  tests/t_staged.py.
+%ifndef STAGED
+%define STAGED 1
+%endif
+%define STG_MAXG 32             ; STAGED: good captures kept in stage 2 (more: the node generates everything at once)
+%define STG_LOGN 320            ; STAGEVERIFY: moves picked at one node that the test build can record
 ; ---- CAPIDX 1 (speed only: the search is the same, tests/golden_depth8*.json are reproduced bit for bit): score_moves (CAPHIST 2 + SEE_ORD) asks
 ; ---- cap_index for the capture history index of a capture to find its SEE threshold, and then again (caph_add) to add the same table entry to the
 ; ---- score.  It keeps the table value from the first lookup in ebp instead (no table write happens in between).  Default 1 (0 = two lookups).
@@ -655,6 +678,23 @@ section .bss  align=64
 %define PREPRUNE 0
 %undef TTFIRST
 %define TTFIRST 0               ; tt_pseudo works on the bitboards
+%undef STAGED
+%define STAGED 0
+%endif
+%if STAGED
+%undef TTFIRST
+%define TTFIRST 1               ; stage 1 is the TT move of TTFIRST
+%ifdef TTFEAGER
+%error "TTFEAGER is a test of TTFIRST alone (STAGED=0)"
+%endif
+%endif
+%ifdef STAGEVERIFY
+%if STAGED == 0
+%error "STAGEVERIFY needs STAGED=1"
+%endif
+%ifdef WIN
+%error "STAGEVERIFY is a Linux test build"
+%endif
 %endif
 %ifdef TTFEAGER
 %if TTFIRST == 0

@@ -68,7 +68,7 @@ Evaluation candidates keep a fixed number, `E1` .. `E21`. The next free number i
 | Reverse futility pruning | Non-PV, not in check: eval − (85 · d − 35 · improving) ≥ beta | 85 (T0), 35 (T1), up to depth `RFP_MAXD` 6 (T75) |
 | Null move pruning | Non-PV, not in check, depth ≥ 3, eval ≥ beta, non-pawn material; R = `NMP_RB` + d/4 + min(599, eval − beta)/`NMP_EDIV` | `NMP_RB` 3 (T2), `NMP_EDIV` 200 (T3) |
 | Late move reductions | Table R = 0.75 + log2(d) · log2(m) · 0.2135, from move `LMR_MINM` 4; modified by the LMR switches below | 750 (T71), 2135 (T72) |
-| Move ordering | TT move, good captures (MVV-LVA + capture history), 2 killers, quiet moves (butterfly history + continuation history), bad captures | |
+| Move ordering | TT move, good captures (MVV-LVA + capture history), 2 killers, quiet moves (butterfly history + continuation history), bad captures; generated in stages, each only when the stage before it ends without a cutoff | `STAGED` 1 |
 | Quiet history | Butterfly table [side][from][to]; bonus min(16 · d², 1600), gravity, ±16000 | 16 (T67), `HIST_BMAX` 1600 (T68) |
 | Draw detection | Repetition, fifty-move rule, insufficient material; a checkmate on the 100th half-move still counts as mate | `R50MATE` 1 (0 = every node at half-move clock 100 is a draw) |
 
@@ -372,7 +372,8 @@ The other numbers are not evaluation switches:
 | `HWPOPCNT` | 2 | POPCNT or plain code chosen at start-up (0 plain, 1 POPCNT only) | Speed (`S1_SWPOPCNT`) |
 | `EVCACHE` | 1 | Static eval stored in the TT entry | Speed (`S0_NOEVCACHE`) |
 | `EV_PHASH` | 0 | Pawn cache per thread (2^`EV_PHBITS` = 2^13 entries, 512 KiB); same values | Speed, not yet measured on the target machine (`S2_PHASH`) |
-| `TTFIRST` | 0 | A TT move that `tt_pseudo` accepts is searched before any move is generated or scored; the rest is generated only if it does not cut. Changes move ordering (later scoring sees the TT subtree's history), so node counts differ; `BB` 1 only | Candidate (`S3_TTFIRST`): −2.4 % instructions per node, tree size unchanged (900 positions, depth 11: −0.7 ± 1.9 %) |
+| `TTFIRST` | 0 (on with `STAGED`) | A TT move that `tt_pseudo` accepts is searched before any move is generated or scored; the rest is generated only if it does not cut. Changes move ordering (later scoring sees the TT subtree's history), so node counts differ; `BB` 1 only | Stage 1 of `STAGED`. Alone (`S3_TTFIRST` = `-DSTAGED=0 -DTTFIRST=1`): −2.4 % instructions per node, tree size unchanged; +1.7 ± 9.2 Elo (2 × 1000 games, 3+0.03) |
+| `STAGED` | 1 | Staged move picking (implies `TTFIRST`): the TT move, then the good captures (generated alone), the killers (checked with `tt_pseudo`), then the full list for the rest, with the earlier picks swapped to its front as `pick()` leaves them. Same band order; the quiet moves are scored later. No stages at the root, in an exclusion search, or when `tt_pseudo` rejects the TT move | Default: +16.5 ± 9.2 Elo against `STAGED` 0 (2 × 1000 games, 3+0.03); −6.2 % instructions per node, tree size unchanged (900 positions, depth 11: +0.3 ± 1.9 %), +5.2 % nps in the tactics suite with the same solve rate (`S5_NOSTAGED` turns it off) |
 | `CAPIDX` | 1 | `score_moves` keeps the capture-history value from the SEE-threshold lookup instead of looking it up a second time (`CAPHIST` 2, `SEE_ORD`) | Speed, same search (golden identical); −1.0 % instructions |
 | `QSSEE` | 1 | Quiescence skips the second `see_ge` for a capture that `score_moves` already found to have SEE < t ≤ 0 (implies `CAPIDX`; `SEE_QS`, `CAPHIST` 2, `CAP_SEEPOS` 1, no `TUNE`) | Speed, same search (golden identical); −0.3 % more instructions; both together −0.9 % time on the target machine (`S4_NOSEEREUSE` turns both off) |
 | `EV_ATTMAPS` | auto | Attack maps of both sides and the second evaluation pass; forced on by every second-pass term | – |
@@ -437,6 +438,10 @@ difference.
 | `INCHKVERIFY` | In-check hint against a fresh in-check test (exit 4 / 5) | with `PPVERIFY` |
 | `CUTVERIFY` | cutNode is 0 / 1 and never set at a PV node (exit 7) | manual |
 | `SEVERIFY` | Exclusion search never in check, never makes the excluded move, never stores, never searches another position (exit 8 .. 11) | `tests/t_singular.py` |
+| `TTFVERIFY` | `tt_pseudo` against the generated list: an accepted move that `gen` does not write (exit 12), a rejected one that it writes (exit 13) | `tests/t_ttfirst.py` |
+| `TTFEAGER` | `TTFIRST` alone (`STAGED` 0) with the list generated and scored at the start: must reproduce `golden_depth8_nostaged.json` | `tests/t_ttfirst.py` |
+| `QSSEEVERIFY` | Every capture marked as losing is refused by `see_ge` too (exit 14) | `tests/t_seereuse.py` |
+| `STAGEVERIFY` | At a node that went through all stages, every move of the list was picked exactly once (exit 15 / 16) | `tests/t_staged.py` |
 | `FORCE_SSE2` | Forces the SSE2 copy of the move pick | manual |
 
 **Test harness builds:**
@@ -449,7 +454,8 @@ difference.
 | `NOTT` | Transposition table off: concurrent searches become deterministic | `t_units_conc.py`, `t_smp_equiv.py` |
 | `TTPLAIN` | Plain (not lock-free) TT stores, the variant that must fail the race test | `tests/t_ttrace.py` |
 | `TTRACE` | A pause between the two TT stores to provoke races | `tests/t_ttrace.py` |
-| `TTFUZZ` | TT probes return random moves | `tests/t_ttfuzz.py` |
+| `TTFUZZ` | TT probes return random moves | `tests/t_ttfuzz.py`, `t_ttfirst.py`, `t_staged.py` |
+| `STGFUZZ` | The killers of stage 3 (`STAGED`) are random moves | `tests/t_staged.py` |
 | `TUNE` | Constants read from the options `T0` .. `T84` (sections 1.3, 2.4) | `tools/spsa.py` |
 | `NOSMP` | Single-thread engine on either OS | manual |
 | `WIN` | Windows target (set by the build scripts) | `build/` |
@@ -481,6 +487,7 @@ subtract two readings.
 | ProbCut margin or depth | `PCVERIFY` with `-DPROBCUT=1` | would-be cuts that the full search refutes (tactical risk) and nodes saved |
 | Late-move pruning, futility, SEE pruning of quiet moves, bitboard move generation | `PPVERIFY` + `PICKVERIFY` + `INCHKVERIFY` (`tests/t_ppverify.py`, also `--selftest`) | any exit code: the pre-make test, the SIMD pick or the in-check hint disagrees with the slow path |
 | `score_moves` or the move pick | `PICKVERIFY` | exit code 6 |
+| TT move before generation, staged picking, `tt_pseudo` | `TTFVERIFY`, `STAGEVERIFY`, `STGFUZZ` (`tests/t_ttfirst.py`, `tests/t_staged.py`, both with `--selftest`) | exit codes 12 / 13 (the validator), 15 / 16 (a move missing or picked twice) |
 | Passing of the in-check state (null move, evasions, quiescence) | `INCHKVERIFY` | exit codes 4 / 5 |
 | cutNode logic (`LMR_CUT`, `NMP_CUT`, `TTCUT_COND`, IIR, ProbCut) | `CUTVERIFY` | exit code 7 |
 | `see_ge`, piece values, x-rays | `SEETEST` (`tests/t_see.py`) | mismatches against the reference exchange search |
