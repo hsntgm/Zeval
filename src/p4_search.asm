@@ -834,6 +834,9 @@ score_moves:
     js .ch0
     movsx esi, word [captab+rax*2]
 .ch0:
+%if CAPIDX_ON
+    mov ebp, esi                ; CAPIDX: the captab value of this move, added to the score below (see_ge keeps rbp)
+%endif
 %if CAP_SEEPOS == 0
     mov eax, esi                ; only bad history moves the threshold
     sar eax, 31
@@ -897,14 +900,29 @@ score_moves:
     jg .bad
 %endif
 .good:
-%if CAPHIST
+%if CAPIDX_ON
+    add esi, ebp                ; the value kept at .ch0 (= what caph_add would look up)
+%elif CAPHIST
     call caph_add
 %endif
     add esi, 0x1000000
     mov [r9+rbx*4], esi
     jmp .next
 .bad:
-%if CAPHIST
+%if QSSEE_ON
+    ; QSSEE: SEE < t = CAP_SEEB - (captab >> CAP_SEESH).  With t <= 0 the capture is one that quiescence prunes (SEE < 0): mark it (bit 16 of its list entry)
+    cmp dword [smq], 0
+    je .nmk
+    mov eax, ebp
+    sar eax, CAP_SEESH
+    cmp eax, CAP_SEEB
+    jl .nmk                     ; captab >> CAP_SEESH < CAP_SEEB: t > 0, SEE < 0 is not known
+    or dword [r8+rbx*4], 0x10000
+.nmk:
+%endif
+%if CAPIDX_ON
+    add esi, ebp
+%elif CAPHIST
     call caph_add
 %endif
 %if SEE_BADLAST
@@ -1342,6 +1360,7 @@ cap_update:
 %define Q_TTMV   40
 %define Q_BMV    44
 %define Q_TTEV   48             ; eval code of this position from the table (EVCACHE): eval + 32768, 0 = unknown
+%define Q_LOSE   52             ; QSSEE: the move picked last is marked "SEE < 0" by score_moves (quiescence skips its see_ge)
 ; EVGET slot: eax = static eval of the node; with EVCACHE taken from the code in [rbp+slot] if known, else computed (and its code kept in the slot)
 %macro EVGET 1
 %if EVCACHE
@@ -1515,7 +1534,13 @@ qsearch:
     lea rsi, [rbp+Q_SCORES]
     mov edx, [rbp+Q_N]
     mov ecx, [rbp+Q_TTMV]
+%if QSSEE_ON
+    mov dword [smq], 1
     call score_moves
+    mov dword [smq], 0
+%else
+    call score_moves
+%endif
     mov dword [rbp+Q_IDX], 0
 .loop:
     mov edx, [rbp+Q_IDX]
@@ -1525,6 +1550,12 @@ qsearch:
     lea rsi, [rbp+Q_SCORES]
     mov ecx, [rbp+Q_N]
     call pick
+%if QSSEE_ON
+    mov edx, eax
+    shr edx, 16                     ; the mark of score_moves (bit 16; the list holds nothing else above bit 15)
+    mov [rbp+Q_LOSE], edx
+    movzx eax, ax
+%endif
     mov [rbp+Q_MV], eax
     inc dword [rbp+Q_IDX]
     cmp dword [rbp+Q_INCHK], 0
@@ -1564,6 +1595,21 @@ qsearch:
     cmp edx, [rbp+Q_ALPHA]
     jle .loop
 %if SEE_QS
+%if QSSEE_ON
+    cmp dword [rbp+Q_LOSE], 0
+%ifdef QSSEEVERIFY
+    je .qsee                    ; test build: ask see_ge anyway; a marked move must get "no", else exit code 14
+    mov edi, [rbp+Q_MV]
+    xor esi, esi
+    call see_ge
+    test eax, eax
+    jnz .qsvf
+    jmp .loop
+.qsee:
+%else
+    jne .loop                   ; score_moves found SEE < t <= 0: the answer of see_ge below would be "no"
+%endif
+%endif
     mov edi, [rbp+Q_MV]         ; static exchange: a capture that loses material is not searched
     xor esi, esi
     call see_ge
@@ -1620,6 +1666,15 @@ qsearch:
 .qicfail:
     mov eax, 231
     mov edi, 5
+    syscall
+%endif
+%ifdef QSSEEVERIFY
+.qsvf:
+%ifdef WIN
+%error "QSSEEVERIFY is a Linux test build"
+%endif
+    mov eax, 231                    ; exit_group
+    mov edi, 14                     ; a move marked "SEE < 0" that see_ge accepts
     syscall
 %endif
 .done:
@@ -1716,6 +1771,16 @@ qsearch:
 %ifdef PCVERIFY
 %assign L_PCW    SF_TOP            ; PCVERIFY only: ProbCut would have cut this node
 %assign SF_TOP SF_TOP+16
+%endif
+%if TTFIRST
+%assign L_LAZY   SF_TOP            ; TTFIRST: 1 while the list holds only the TT move (the other moves are generated when it does not cut)
+%assign L_BAKN   SF_TOP+4          ; TTFEAGER: number of moves of the list kept aside
+%assign SF_TOP SF_TOP+16
+%ifdef TTFEAGER
+%assign L_BAKM   SF_TOP            ; TTFEAGER (test build): the generated list and its scores, kept aside during the TT move
+%assign L_BAKS   SF_TOP+1024
+%assign SF_TOP SF_TOP+2048
+%endif
 %endif
 %if CAPHIST
 %assign L_NCAP   SF_TOP            ; CAPHIST: captures searched so far at this node (at most 16)
@@ -2506,6 +2571,109 @@ search:
     ; ---- move generation
 .gen:
 %endif
+%if TTFIRST
+    ; ---- TTFIRST (see p1_data.asm): a TT move that tt_pseudo accepts is searched before anything is generated.  The list holds only that move
+    ; ---- (score 0x40000000, as score_moves would give it); .tfgen below fills in the rest when the loop runs out of moves.
+    mov dword [rbp+L_LAZY], 0
+%ifdef TTFVERIFY
+    lea rdi, [rbp+L_MOVES]          ; test build: tt_pseudo against gen for the moves of this node, their bit flips and random values
+    xor esi, esi
+    call gen
+    mov rsi, rax
+    lea rdi, [rbp+L_MOVES]
+    call ttf_selfcheck
+%endif
+    cmp dword [rbp+L_ROOT], 0
+    jne .tfn
+%if SING
+    cmp dword [rbp+L_EXCL], 0       ; (an exclusion search leaves the TT move out)
+    jne .tfn
+%endif
+    mov edi, [rbp+L_TTMV]
+    test edi, edi
+    jz .tfn
+    call tt_pseudo
+%ifdef TTFVERIFY
+    mov [rbp+L_TMP], eax            ; the answer of tt_pseudo
+    lea rdi, [rbp+L_MOVES]
+    xor esi, esi
+    call gen
+    lea rcx, [rbp+L_MOVES]
+    mov edx, [rbp+L_TTMV]
+    xor esi, esi                    ; esi = 1: the TT move is in gen's list
+.tfv1:
+    cmp rcx, rax
+    jae .tfv2
+    cmp [rcx], edx
+    jne .tfv0
+    mov esi, 1
+.tfv0:
+    add rcx, 4
+    jmp .tfv1
+.tfv2:
+    cmp dword [rbp+L_TMP], 0
+    je .tfv3
+    test esi, esi
+    jz .tfvf12                      ; accepted, but gen does not write it: unsound
+    jmp .tfvd
+.tfv3:
+    test esi, esi
+    jz .tfvd                        ; rejected and not generated: right
+    mov ecx, edx                    ; rejected, but generated: only a castle may be (the king moves two files)
+    and ecx, 127
+    movzx eax, byte [board+rcx]
+    and eax, 7
+    cmp eax, 6
+    jne .tfvf13
+    mov eax, edx
+    shr eax, 7
+    and eax, 127
+    sub eax, ecx
+    cmp eax, 2
+    je .tfvd
+    cmp eax, -2
+    jne .tfvf13
+.tfvd:
+    mov eax, [rbp+L_TMP]
+%endif
+    test eax, eax
+    jz .tfn
+%ifdef TTFEAGER
+    ; test build: the list and its scores as a node without TTFIRST has them NOW (before the subtree of the TT move), kept aside
+    lea rdi, [rbp+L_MOVES]
+    xor esi, esi
+    call gen
+    lea rcx, [rbp+L_MOVES]
+    sub rax, rcx
+    shr eax, 2
+    mov [rbp+L_N], eax
+    mov [rbp+L_BAKN], eax
+    lea rdi, [rbp+L_MOVES]
+    lea rsi, [rbp+L_SCORES]
+    mov edx, [rbp+L_N]
+    mov ecx, [rbp+L_TTMV]
+    call score_moves
+    lea rsi, [rbp+L_MOVES]
+    lea rdi, [rbp+L_BAKM]
+    mov ecx, 256
+    rep movsd
+    lea rsi, [rbp+L_SCORES]
+    lea rdi, [rbp+L_BAKS]
+    mov ecx, 256
+    rep movsd
+%endif
+    mov eax, [rbp+L_TTMV]
+    mov [rbp+L_MOVES], eax
+    mov dword [rbp+L_SCORES], 0x40000000
+    mov dword [rbp+L_SCORES+4], 0x80000000      ; pick() reads up to 3 entries past n
+    mov dword [rbp+L_SCORES+8], 0x80000000
+    mov dword [rbp+L_SCORES+12], 0x80000000
+    mov dword [rbp+L_SCORES+16], 0x80000000
+    mov dword [rbp+L_N], 1
+    mov dword [rbp+L_LAZY], 1
+    jmp .tfset
+.tfn:
+%endif
     lea rdi, [rbp+L_MOVES]
     xor esi, esi
     call gen
@@ -2526,6 +2694,9 @@ search:
     mov edx, [rbp+L_N]
     mov ecx, [rbp+L_TTMV]
     call score_moves
+%if TTFIRST
+.tfset:
+%endif
     mov dword [rbp+L_IDX], 0
 %ifdef ORDSTAT
     mov dword [rbp+L_ORDQ], 0
@@ -3404,7 +3575,60 @@ search:
     inc ebx
     jmp .cml
 %endif
+%if TTFIRST
+.tfgen:                             ; TTFIRST: the TT move was searched and did not cut (or was illegal): the other moves, from here on as at any node
+    mov dword [rbp+L_LAZY], 0
+%ifdef TTFEAGER
+    lea rsi, [rbp+L_BAKM]           ; test build: the list and the scores of the start of the node
+    lea rdi, [rbp+L_MOVES]
+    mov ecx, 256
+    rep movsd
+    lea rsi, [rbp+L_BAKS]
+    lea rdi, [rbp+L_SCORES]
+    mov ecx, 256
+    rep movsd
+    mov eax, [rbp+L_BAKN]
+    mov [rbp+L_N], eax
+%else
+    lea rdi, [rbp+L_MOVES]
+    xor esi, esi
+    call gen
+    lea rcx, [rbp+L_MOVES]
+    sub rax, rcx
+    shr eax, 2
+    mov [rbp+L_N], eax
+    lea rdi, [rbp+L_MOVES]
+    lea rsi, [rbp+L_SCORES]
+    mov edx, [rbp+L_N]
+    mov ecx, [rbp+L_TTMV]
+    call score_moves
+%endif
+    lea rdi, [rbp+L_MOVES]
+    lea rsi, [rbp+L_SCORES]
+    xor edx, edx
+    mov ecx, [rbp+L_N]
+    call pick                       ; the TT move (0x40000000, the unique maximum) goes to index 0: the same permutation as at a node that picks it first
+    mov dword [rbp+L_IDX], 1
+    jmp .mloop
+%ifdef TTFVERIFY
+.tfvf12:
+%ifdef WIN
+%error "TTFVERIFY is a Linux test build"
+%endif
+    mov eax, 231                    ; exit_group
+    mov edi, 12
+    syscall
+.tfvf13:
+    mov eax, 231
+    mov edi, 13
+    syscall
+%endif
+%endif
 .mdone:
+%if TTFIRST
+    cmp dword [rbp+L_LAZY], 0
+    jne .tfgen
+%endif
     cmp dword [rbp+L_MCNT], 0
     jne .store
 %if SING
@@ -3572,6 +3796,111 @@ search:
     pop rbx
     pop rbp
     ret
+
+%ifdef TTFVERIFY
+; ttf_selfcheck(rdi = start, rsi = end of gen's mode-0 list of this position) -> returns, or ends the process: exit code 12 when tt_pseudo accepts
+; a move that is not in the list (unsound), 13 when it rejects one that is in the list and is not a castling move (incomplete).
+; Candidates: every move of the list, its 16 one-bit flips (the nearest garbage a damaged entry can hold) and 64 pseudo-random 16-bit values.
+; TTFVERIFY test build only (a Linux single-unit build).  The real TT moves are all legal moves, so the check of the TT move alone would never see
+; a validator that accepts too much; this does.
+section .data
+ttfrnd:     dd 1
+section .text
+ttf_selfcheck:
+    push rbx
+    push rbp
+    push r12
+    push r13
+    push r14
+    push r15
+    mov r12, rdi
+    mov r13, rsi
+    mov r14, rdi
+.a: cmp r14, r13
+    jae .rnd
+    mov ebx, [r14]
+    xor ebp, ebp                    ; 0 = the move itself, 1 .. 16 = the move with bit (ebp - 1) flipped
+.v: mov r15d, ebx
+    test ebp, ebp
+    jz .t
+    lea ecx, [rbp-1]
+    mov eax, 1
+    shl eax, cl
+    xor r15d, eax
+.t: call .chk
+    inc ebp
+    cmp ebp, 17
+    jl .v
+    add r14, 4
+    jmp .a
+.rnd:
+    xor ebp, ebp
+.r: mov eax, [ttfrnd]
+    imul eax, eax, 0x9E3779B1
+    add eax, 0x7F4A7C15
+    mov [ttfrnd], eax
+    mov r15d, eax
+    shr r15d, 16
+    call .chk
+    inc ebp
+    cmp ebp, 64
+    jl .r
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbp
+    pop rbx
+    ret
+.chk:                               ; r15d = the candidate
+    mov edi, r15d
+    call tt_pseudo
+    push rax
+    xor edx, edx                    ; edx = 1: the candidate is in the list
+    mov rcx, r12
+.s: cmp rcx, r13
+    jae .sd
+    cmp [rcx], r15d
+    jne .sn
+    mov edx, 1
+.sn:add rcx, 4
+    jmp .s
+.sd:pop rax
+    test eax, eax
+    jz .rej
+    test edx, edx
+    jz .f12                         ; accepted, but gen does not write it
+    ret
+.rej:
+    test edx, edx
+    jz .ok                          ; rejected and not generated
+    mov ecx, r15d                   ; rejected, but generated: only a castle (the king moves two files) may be
+    and ecx, 127
+    movzx eax, byte [board+rcx]
+    and eax, 7
+    cmp eax, 6
+    jne .f13
+    mov eax, r15d
+    shr eax, 7
+    and eax, 127
+    sub eax, ecx
+    cmp eax, 2
+    je .ok
+    cmp eax, -2
+    jne .f13
+.ok:ret
+.f12:
+%ifdef WIN
+%error "TTFVERIFY is a Linux test build"
+%endif
+    mov eax, 231                    ; exit_group
+    mov edi, 12
+    syscall
+.f13:
+    mov eax, 231
+    mov edi, 13
+    syscall
+%endif
 
 ; ============================================================
 ; go searchmoves helpers

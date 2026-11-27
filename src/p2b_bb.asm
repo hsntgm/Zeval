@@ -325,6 +325,171 @@ pp_ok:
     ret
 %endif                          ; PREPRUNE
 
+%if TTFIRST
+; ------------------------------------------------------------
+; tt_pseudo(edi = move, 16 bits) -> eax = 1: the move is in the list that gen(mode 0) writes for this position.  0: it is not, or this
+; function does not know (CASTLING is never accepted: the caller then generates the list, as without TTFIRST).
+; Used for a TT move that has to be made before anything is generated (TTFIRST).  The contract is ONE-SIDED: an accepted move MUST be in
+; gen's list (else it would be made without having been generated: tests/t_ttfirst.py, -DTTFVERIFY); a rejected one may be a move that gen
+; writes (only costs the speed-up).  A key collision of the table or a damaged entry gives any 16 bits, so every field is checked:
+;   * both squares are 0x88 squares, the from square holds a piece of the side to move, the destination none of its own
+;   * knight / king: the destination is in knight_att / king_att of the from square (a king moving two files is a castle: 0)
+;   * bishop / rook / queen: the destination is in the slider attacks of the from square with the full occupancy
+;   * every piece but a pawn that promotes: promo field 0 (gen writes 0 there)
+;   * pawn: push (one rank, empty), double push (second rank, both squares empty), capture (enemy piece), en passant (destination = epsq, empty);
+;     a move to the last rank may carry any of the four promo fields, every other pawn move 0
+; clobbers rax rcx rdx rsi rdi r8 r9 r10 r11.  Keeps rbx rbp r12-r15.
+; ------------------------------------------------------------
+tt_pseudo:
+    movzx edi, di
+    mov esi, edi
+    and esi, 127                ; from (0x88)
+    mov r8d, edi
+    shr r8d, 7
+    and r8d, 127                ; to (0x88)
+    shr edi, 14                 ; promo field 0..3
+    test esi, 0x88
+    jnz .no
+    test r8d, 0x88
+    jnz .no
+    movzx eax, byte [board+rsi]
+    test eax, eax
+    jz .no
+    mov ecx, eax
+    xor ecx, [stm]
+    test ecx, 8
+    jnz .no                     ; not a piece of the side to move
+    movzx r10d, byte [board+r8] ; destination (0 = empty)
+    test r10d, r10d
+    jz .dok
+    mov ecx, r10d
+    xor ecx, [stm]
+    test ecx, 8
+    jz .no                      ; own piece on the destination
+.dok:
+    and eax, 7                  ; piece type 1 = pawn .. 6 = king
+    cmp eax, 1
+    je .pawn
+    test edi, edi
+    jnz .no                     ; only a promotion has a promo field
+    mov ecx, esi
+    and ecx, 7
+    add ecx, esi
+    shr ecx, 1                  ; from, 0..63
+    mov edx, r8d
+    and edx, 7
+    add r8d, edx
+    shr r8d, 1                  ; to, 0..63
+    cmp eax, 2
+    jne .nk
+    mov rax, [knight_att+rcx*8]
+    jmp .tst
+.nk:cmp eax, 6
+    jne .sl
+    mov rax, [king_att+rcx*8]
+    jmp .tst
+.sl:mov r11d, eax               ; piece type 3 / 4 / 5
+    mov r9, [bbc]
+    or r9, [bbc+8]              ; occupancy
+    mov esi, ecx
+    shl esi, 5                  ; record offset (from * 32)
+    cmp r11d, 4
+    je .rk
+    mov rax, r9                 ; bishop and queen: the diagonals
+    and rax, [btab+rsi]
+    imul rax, [btab+rsi+8]
+    mov ecx, [btab+rsi+24]
+    shr rax, cl
+    mov rdx, [btab+rsi+16]
+    mov rax, [rdx+rax*8]
+    bt rax, r8
+    jc .yes
+    cmp r11d, 3
+    je .no                      ; a bishop has no more lines
+.rk:mov rax, r9                 ; rook and queen: files and ranks
+    and rax, [rtab+rsi]
+    imul rax, [rtab+rsi+8]
+    mov ecx, [rtab+rsi+24]
+    shr rax, cl
+    mov rdx, [rtab+rsi+16]
+    mov rax, [rdx+rax*8]
+.tst:
+    bt rax, r8
+    jc .yes
+    jmp .no
+.pawn:
+    mov r9d, [stm]
+    mov ecx, r8d
+    sub ecx, esi                ; to - from
+    test r9d, r9d
+    jnz .bp
+    cmp ecx, 16
+    je .push
+    cmp ecx, 32
+    je .dbl
+    cmp ecx, 15
+    je .cap
+    cmp ecx, 17
+    je .cap
+    jmp .no
+.bp:cmp ecx, -16
+    je .push
+    cmp ecx, -32
+    je .dbl
+    cmp ecx, -15
+    je .cap
+    cmp ecx, -17
+    je .cap
+    jmp .no
+.push:
+    test r10d, r10d
+    jnz .no                     ; the square in front is not empty
+    jmp .pr
+.dbl:
+    test edi, edi
+    jnz .no
+    test r10d, r10d
+    jnz .no
+    mov eax, esi
+    and eax, 0xF0
+    mov edx, 0x10               ; white: from the second rank
+    test r9d, r9d
+    jz .d1
+    mov edx, 0x60               ; black: from the seventh rank
+.d1:cmp eax, edx
+    jne .no
+    lea eax, [rsi+r8]
+    shr eax, 1                  ; the square between (same file: (from + to) / 2)
+    cmp byte [board+rax], 0
+    jne .no
+    mov eax, 1
+    ret
+.cap:
+    test r10d, r10d
+    jnz .pr                     ; an enemy piece (an own one was refused above)
+    mov eax, [epsq]
+    test eax, eax
+    jz .no
+    cmp eax, r8d
+    jne .no                     ; empty destination: only en passant
+.pr:mov eax, r8d                ; the last rank takes any promo field, no other rank takes one
+    and eax, 0xF0
+    mov edx, 0x70
+    test r9d, r9d
+    jz .p1
+    xor edx, edx
+.p1:cmp eax, edx
+    je .yes
+    test edi, edi
+    jnz .no
+.yes:
+    mov eax, 1
+    ret
+.no:
+    xor eax, eax
+    ret
+%endif                          ; TTFIRST
+
 ; ============================================================
 ; gen(rdi = out buffer of dwords, esi = mode) -> rax = end            (bitboard version; mailbox version = gen_88)
 ; mode 0: all pseudo-legal moves; mode 1: captures, en passant, queen promotions.   move = from | to<<7 | promo<<14 (0x88 squares)

@@ -471,6 +471,34 @@ section .bss  align=64
 %ifndef NEG_EXT
 %define NEG_EXT 0            ; SING 2: negative extension of a TT move that is neither singular nor a multi-cut (see above)
 %endif
+; ---- TTFIRST 1: a node (not the root, not an exclusion search) whose TT move passes tt_pseudo (p2b_bb.asm: "the move is in gen's list", checked
+; ---- on the bitboards without generating anything) searches that move FIRST, before any move is generated or scored.  Only when it does not cut
+; ---- (and the node goes on) the moves are generated and scored, the TT move is moved to index 0 exactly as pick() does it at a normal node, and
+; ---- the loop goes on at index 1.  A TT move that cuts (about 14 % of the nodes that reach the move generation) costs no generation and no scoring.
+; ---- The ORDER is not the one of TTFIRST 0: the other moves are scored AFTER the subtree of the TT move, so the history / capture history /
+; ---- continuation history they see already contains what that subtree learned (the usual lazy move picker).  Node counts therefore differ
+; ---- (tests/golden_depth8_ttfirst.json); it is a search change and needs a strength test (candidates/FLAGS.txt: S3_TTFIRST).  BB=1 only.
+; ---- -DTTFEAGER (test build, needs TTFIRST 1): generate and score at the start as before and keep the list aside; the path through the one-move
+; ---- list is the same.  That build must reproduce golden_depth8.json bit for bit: it proves everything except the later scoring.
+; ---- -DTTFVERIFY (test build, needs TTFIRST 1): at every node that tt_pseudo judges, generate the list and compare: accepted but not in the
+; ---- list = exit code 12 (unsound: the move would be made without being generated); rejected but in the list and not a castling move = exit
+; ---- code 13 (incomplete: harmless for the result, but the speed-up is lost).  tests/t_ttfirst.py.
+%ifndef TTFIRST
+%define TTFIRST 0
+%endif
+; ---- CAPIDX 1 (speed only: the search is the same, tests/golden_depth8*.json are reproduced bit for bit): score_moves (CAPHIST 2 + SEE_ORD) asks
+; ---- cap_index for the capture history index of a capture to find its SEE threshold, and then again (caph_add) to add the same table entry to the
+; ---- score.  It keeps the table value from the first lookup in ebp instead (no table write happens in between).
+%ifndef CAPIDX
+%define CAPIDX 0
+%endif
+; ---- QSSEE 1 (speed only, same search): quiescence prunes a capture with SEE < 0 (SEE_QS) AFTER score_moves has asked see_ge for the same capture
+; ---- whether SEE >= t, t = CAP_SEEB - (captab >> CAP_SEESH).  When that answer is "no" and t <= 0, then SEE < t <= 0 and the capture is pruned
+; ---- anyway: score_moves marks such a move (bit 16 of its entry in the move list, only while quiescence scores: [smq] = 1) and quiescence skips the
+; ---- second see_ge for it.  Needs SEE_QS, SEE_ORD, CAPHIST 2, CAP_SEEPOS 1 and no TUNE build (the threshold is then a constant of the table value).
+%ifndef QSSEE
+%define QSSEE 0
+%endif
 %ifdef SMPTEST
 %undef CH_SHARED
 %define CH_SHARED 0
@@ -624,6 +652,30 @@ section .bss  align=64
 %if BB == 0
 %undef PREPRUNE
 %define PREPRUNE 0
+%undef TTFIRST
+%define TTFIRST 0               ; tt_pseudo works on the bitboards
+%endif
+%ifdef TTFEAGER
+%if TTFIRST == 0
+%error "TTFEAGER needs TTFIRST=1"
+%endif
+%endif
+%ifdef TTFVERIFY
+%if TTFIRST == 0
+%error "TTFVERIFY needs TTFIRST=1"
+%endif
+%endif
+; CAPIDX / QSSEE act only in the configuration they are written for (the others keep the old code)
+%assign CAPIDX_ON 0
+%if CAPIDX && SEE_ORD && CAPHIST >= 2
+%assign CAPIDX_ON 1
+%endif
+%assign QSSEE_ON 0
+%if QSSEE && SEE_QS && SEE_ORD && CAPHIST >= 2 && CAP_SEEPOS == 1
+%ifndef TUNE
+%assign QSSEE_ON 1
+%assign CAPIDX_ON 1             ; the mark uses the table value that CAPIDX keeps in ebp
+%endif
 %endif
 %ifdef PPVERIFY
 %if PREPRUNE == 0
@@ -870,6 +922,9 @@ bbc:        resq 2              ; occupancy of each colour, indexed by the colou
 pos_end:
 ply:        resd 1
 seldep:     resd 1                  ; deepest ply reached (search + quiescence) in the current iteration
+%if QSSEE_ON
+smq:        resd 1                  ; QSSEE: 1 while quiescence calls score_moves (it then marks the captures that quiescence prunes)
+%endif
 itdepth:    resd 1                  ; depth of the current iteration (for "info ... currmove")
 alignb 8
 nodes:      resq 1

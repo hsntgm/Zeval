@@ -372,6 +372,9 @@ The other numbers are not evaluation switches:
 | `HWPOPCNT` | 2 | POPCNT or plain code chosen at start-up (0 plain, 1 POPCNT only) | Speed (`S1_SWPOPCNT`) |
 | `EVCACHE` | 1 | Static eval stored in the TT entry | Speed (`S0_NOEVCACHE`) |
 | `EV_PHASH` | 0 | Pawn cache per thread (2^`EV_PHBITS` = 2^13 entries, 512 KiB); same values | Speed, not yet measured on the target machine (`S2_PHASH`) |
+| `TTFIRST` | 0 | A TT move that `tt_pseudo` accepts is searched before any move is generated or scored; the rest is generated only if it does not cut. Changes move ordering (later scoring sees the TT subtree's history), so node counts differ; `BB` 1 only | Candidate (`S3_TTFIRST`): −2.4 % instructions per node, tree size unchanged (900 positions, depth 11: −0.7 ± 1.9 %) |
+| `CAPIDX` | 0 | `score_moves` keeps the capture-history value from the SEE-threshold lookup instead of looking it up a second time (`CAPHIST` 2, `SEE_ORD`) | Speed, same search (golden identical); −1.0 % instructions (`S4_CAPIDX`) |
+| `QSSEE` | 0 | Quiescence skips the second `see_ge` for a capture that `score_moves` already found to have SEE < t ≤ 0 (implies `CAPIDX`; `SEE_QS`, `CAPHIST` 2, `CAP_SEEPOS` 1, no `TUNE`) | Speed, same search (golden identical); −0.3 % more (`S5_QSSEE`) |
 | `EV_ATTMAPS` | auto | Attack maps of both sides and the second evaluation pass; forced on by every second-pass term | – |
 | `EV_TUNEMODE` | 0 | Turns off every non-linear part (lazy, initiative, grain) for tuning builds | Diagnostic |
 | `EV_OSCALE` | 1024 | Scales the normal evaluation by N/1024 (test builds) | Diagnostic |

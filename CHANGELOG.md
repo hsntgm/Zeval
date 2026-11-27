@@ -8,6 +8,13 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
 
 ### Search
 
+- **TT move before move generation** (`TTFIRST`, default 0, candidate `S3_TTFIRST`): `tt_pseudo` checks on the bitboards that the TT
+  move is in the generator's list; such a move is searched first, and the other moves are generated and scored only when it does not
+  cut. Not a pure speed change: the other moves are scored after the subtree of the TT move and see its history updates.
+- **Two speed-only changes of capture scoring** (`CAPIDX`, `QSSEE`, default 0; candidates `S4_CAPIDX`, `S5_QSSEE`, and `S6_SPEED3` with
+  `TTFIRST`): `score_moves` looks up the capture-history entry of a capture once instead of twice (`CAPIDX`), and quiescence skips the
+  second `see_ge` for a capture that `score_moves` already found to lose (`QSSEE`). The search is unchanged (golden identical).
+
 - **Capture history** (`CAPHIST` 2, default):
   - A table `[piece][to square][victim]` per thread, cleared by `ucinewgame`.
   - A capture that causes a cutoff gets min(120 · depth, 1200) as a bonus. Every capture searched before the cutoff move gets the
@@ -90,6 +97,11 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
   - `-DHSTAT` (console command `hstat`): counters of continuation-history pruning and of the LMR history step.
   - `-DPCVERIFY` (`pcstat`): ProbCut without cutting, counting how often a would-be cut is refuted.
 - **New `tools/build_testbuilds.sh` / `.bat`:** build the test builds used by `verify_smp.bat` and `verify_units.bat`.
+- **New `tests/t_ttfirst.py`:** for `TTFIRST`: a build that generates eagerly reproduces the default golden, `tt_pseudo` agrees with the
+  generator at every node (also for bit flips and random values), garbage TT moves, a reference `golden_depth8_ttfirst.json`;
+  `--selftest` breaks the validator 12 ways.
+- **New `tests/t_seereuse.py`:** `CAPIDX` / `QSSEE` reproduce the golden, and every capture marked as losing is refused by `see_ge`
+  (`-DQSSEEVERIFY`); `--selftest` breaks the mark 2 ways.
 - **New `tests/t_tune.py`:** every read of the option table is marked, and a `-DTUNE` build declares its `T<n>` options with the current
   values.
 - **`tests/match.py`:** an engine that fails the start-up handshake is stopped instead of left running.
