@@ -155,7 +155,7 @@ def selftest(engine_unused, n, seed):
     head, src_eval, tail = src[:i], src[i:j], src[j:]
     mutants = {      # name: list of (old, new) text replacements; every old text must occur exactly once in the full evaluation
         "black bishop-pair bonus BP_MG -> BP_MG-1 (asymmetric term)": [("    sub eax, BP_MG\n    sub ecx, BP_EG\n", "    sub eax, BP_MG-1\n    sub ecx, BP_EG\n")],
-        "tempo TEMPO -> TEMPO+1": [("    neg eax\n.w: add eax, TEMPO\n", "    neg eax\n.w: add eax, TEMPO+1\n")],
+        "tempo TEMPO -> TEMPO+1": [("%endif\n    add eax, TEMPO\n    add rsp, 2*EVS+32\n", "%endif\n    add eax, TEMPO+1\n    add rsp, 2*EVS+32\n")],
         "black view built from the wrong king square (asymmetric full evaluation)": [("    mov [rsp+EVS+EV_KSQ], edx\n", "    mov [rsp+EVS+EV_KSQ], eax\n"),
                                                                                    ("    mov [rsp+EVS+EV_TKSQ], eax\n", "    mov [rsp+EVS+EV_TKSQ], edx\n")],
     }

@@ -44,6 +44,10 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
 - **Open lines against the enemy king** (`EV_KLINES`, default): on the king's file and its two neighbours, files without any pawn in
   front of the king, own pawns storming within three ranks of it, and own rooks and queens on files without a shelter pawn. Middlegame
   only. Result: +6.6 ± 14.0 Elo in 1000 games at 3+0.03; tactics results unchanged.
+- **Three speed-only switches** (`EV_SFAST`, `EV_KLBITS`, `EV_BRSIGN`, default 1): the scale factor 64 of most positions is taken
+  without calling `ev_scale` (`EV_SFAST`; the pawn threshold follows the constants of rule 6), the king-line terms are counted with
+  bitboard operations (`EV_KLBITS`), and two sign choices lose their branches (`EV_BRSIGN`). Every evaluation value and the search are
+  unchanged; together 1.5 % less time at the same nodes. Candidate `S6_NOEVSPEED` turns all three off.
 - **Retuned values of switches that are off:**
   - `EV_IMBAL` (material imbalance) and `EV_INIT` (initiative) were tuned from zero.
   - Neither is the default: `EV_IMBAL` −23.2 ± 18.8, `EV_INIT` −1.5 ± 14.1.
@@ -111,6 +115,9 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
 - **New reference `tests/golden_depth8_nostaged.json`:** the search without stages (`-DSTAGED=0`), which the older references
   (`golden_depth8_zeval10.json` and the others) now need in their build flags.
 - **`tests/t_smp_audit.py`** takes `-D` switches, to audit a build with a switch on.
+- **New `tests/t_evspeed.py`:** `EV_SFAST` / `EV_KLBITS` / `EV_BRSIGN` reproduce the golden and the eval of the code they replace on
+  random and endgame positions (also with other constants of scale rule 6), and `-DSFASTVERIFY` checks every use of the fast path against
+  `ev_scale`; `--selftest` breaks the switches 10 ways.
 - **New `tests/t_seereuse.py`:** `CAPIDX` / `QSSEE` reproduce the golden, and every capture marked as losing is refused by `see_ge`
   (`-DQSSEEVERIFY`); `--selftest` breaks the mark 2 ways.
 - **New `tests/t_tune.py`:** every read of the option table is marked, and a `-DTUNE` build declares its `T<n>` options with the current
@@ -140,6 +147,6 @@ The engine still identifies itself as Zeval 1.0. The version changes with the 1.
 
 ### Defaults compared with 1.0
 
-The default engine differs from 1.0 by `CAPHIST` 2, `EV_KLINES` and `STAGED` (and by the speed-only `CAPIDX` / `QSSEE`, which search
-the same tree). The fixed-depth reference search (`tests/golden_depth8.json`, 60 positions at depth 8) changed from 2,484,151 to
+The default engine differs from 1.0 by `CAPHIST` 2, `EV_KLINES` and `STAGED` (and by the speed-only `CAPIDX` / `QSSEE` and
+`EV_SFAST` / `EV_KLBITS` / `EV_BRSIGN`, which search the same tree). The fixed-depth reference search (`tests/golden_depth8.json`, 60 positions at depth 8) changed from 2,484,151 to
 2,397,486 nodes.

@@ -371,6 +371,9 @@ The other numbers are not evaluation switches:
 | `EVAL_FULL` | 1 | Full evaluation (0 = material + PST, forced with `BB` 0); against material + PST +119.1 ± 29.2 (400, 40 ms) | Default |
 | `HWPOPCNT` | 2 | POPCNT or plain code chosen at start-up (0 plain, 1 POPCNT only) | Speed (`S1_SWPOPCNT`) |
 | `EVCACHE` | 1 | Static eval stored in the TT entry | Speed (`S0_NOEVCACHE`) |
+| `EV_SFAST` | 1 | The scale factor 64 taken without `ev_scale` when no scale rule can give less (strong side with pawns on both flanks and enough of them for rule 6, not exactly one queen, no opposite-coloured bishops); `EV_SCALE2` and no `TUNE` only | Speed, same values: with the two below −1.5 % time at the same nodes on the target machine (`S6_NOEVSPEED` turns all three off) |
+| `EV_KLBITS` | 1 | King-line terms counted with bitboard operations instead of a loop over three files | Speed, same values (`S6_NOEVSPEED`) |
+| `EV_BRSIGN` | 1 | Strong side of the scale factor and side-to-move sign chosen without branches | Speed, same values (`S6_NOEVSPEED`) |
 | `EV_PHASH` | 0 | Pawn cache per thread (2^`EV_PHBITS` = 2^13 entries, 512 KiB); same values | Speed, not yet measured on the target machine (`S2_PHASH`) |
 | `TTFIRST` | 0 (on with `STAGED`) | A TT move that `tt_pseudo` accepts is searched before any move is generated or scored; the rest is generated only if it does not cut. Changes move ordering (later scoring sees the TT subtree's history), so node counts differ; `BB` 1 only | Stage 1 of `STAGED`. Alone (`S3_TTFIRST` = `-DSTAGED=0 -DTTFIRST=1`): −2.4 % instructions per node, tree size unchanged; +1.7 ± 9.2 Elo (2 × 1000 games, 3+0.03) |
 | `STAGED` | 1 | Staged move picking (implies `TTFIRST`): the TT move, then the good captures (generated alone), the killers (checked with `tt_pseudo`), then the full list for the rest, with the earlier picks swapped to its front as `pick()` leaves them. Same band order; the quiet moves are scored later. No stages at the root, in an exclusion search, or when `tt_pseudo` rejects the TT move | Default: +16.5 ± 9.2 Elo against `STAGED` 0 (2 × 1000 games, 3+0.03); −6.2 % instructions per node, tree size unchanged (900 positions, depth 11: +0.3 ± 1.9 %), +5.2 % nps in the tactics suite with the same solve rate (`S5_NOSTAGED` turns it off) |
@@ -441,6 +444,7 @@ difference.
 | `TTFVERIFY` | `tt_pseudo` against the generated list: an accepted move that `gen` does not write (exit 12), a rejected one that it writes (exit 13) | `tests/t_ttfirst.py` |
 | `TTFEAGER` | `TTFIRST` alone (`STAGED` 0) with the list generated and scored at the start: must reproduce `golden_depth8_nostaged.json` | `tests/t_ttfirst.py` |
 | `QSSEEVERIFY` | Every capture marked as losing is refused by `see_ge` too (exit 14) | `tests/t_seereuse.py` |
+| `SFASTVERIFY` | Wherever `EV_SFAST` takes the scale factor 64, `ev_scale` gives 64 too (exit 17) | `tests/t_evspeed.py` |
 | `STAGEVERIFY` | At a node that went through all stages, every move of the list was picked exactly once (exit 15 / 16) | `tests/t_staged.py` |
 | `FORCE_SSE2` | Forces the SSE2 copy of the move pick | manual |
 

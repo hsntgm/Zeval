@@ -34,6 +34,16 @@
 ;              plain x86-64 code).  0: plain x86-64 code only.  1: POPCNT only (needs a CPU with POPCNT).  Same results in every case.
 ;   EVCACHE    1 (default): the static eval of a node is kept in the transposition table entry (bits 16-31 of the data qword, see p4_search.asm)
 ;              and taken from there on a hit instead of being computed again.  Same values, same search tree.  0: always computed.
+;   Three speed-only switches, default 1 (0 = the code they replace; same values, same search tree; tests/t_evspeed.py).  Together
+;   -1.5 % time at the same nodes on the target machine:
+;   EV_SFAST   1: EVTOTAL takes the scale factor 64 without calling ev_scale when no rule of EV_SCALE2 can give less: the strong side has
+;              pawns on both flanks and at least EV_SFPMIN of them (the fewest for which rule 6 reaches 64; 4 with the constants below),
+;              the board does not hold exactly one queen, and there is no pair of opposite-coloured bishops.  Acts only with EV_SCALE2 and
+;              constants fixed at assembly (not in a -DTUNE build).  A new scale rule must keep this test exact; -DSFASTVERIFY (Linux)
+;              calls ev_scale anyway and ends the program with exit code 17 when it does not give 64.
+;   EV_KLBITS  1: the king-line terms (EV_KLOPEN, EV_KLHEAVY, EV_KLSTORM) are counted with bitboard operations instead of a loop over
+;              the three files.
+;   EV_BRSIGN  1: the strong side of EV_SCALE and the side-to-move sign of the result are chosen without branches.
 ;   EV_TUNEMODE 0 (default).  1: every approximation of the evaluation that is not part of the linear model is off (lazy evaluation and the
 ;              other non-linear parts as they are added); the build for check_eval / data generation of a tuning run that uses them.
 ;   EV_ENDG    1 (default; 0 = without).  Special evaluations when one side has only its king (checked before everything else; not part of the linear model,
@@ -150,6 +160,15 @@
 %endif
 %ifndef HWPOPCNT
 %define HWPOPCNT 2
+%endif
+%ifndef EV_SFAST
+%define EV_SFAST 1                  ; speed only: the scale factor 64 of the common case without ev_scale (header)
+%endif
+%ifndef EV_KLBITS
+%define EV_KLBITS 1                 ; speed only: EV_KLINES counted with bitboard operations
+%endif
+%ifndef EV_BRSIGN
+%define EV_BRSIGN 1                 ; speed only: strong side and side-to-move sign without branches
 %endif
 %ifndef EVCACHE
 %define EVCACHE 1
@@ -401,6 +420,31 @@
 %endif
 %if EV_SCALE2 && EV_SCALE == 0
 %error "EV_SCALE2 needs EV_SCALE=1"
+%endif
+; EV_SFAST acts where its test is exact: rule set 2 with constants fixed at assembly (not -DTUNE) and rule 6 reaching 64.
+; EV_SFPMIN = the fewest pawns of s for which rule 6 gives 64 (at least 2: pawns on both flanks)
+%assign EV_SFAST_ON 0
+%if EV_SFAST && EV_SCALE2
+%ifndef TUNE
+%if SC_G0 >= 64
+%assign EV_SFAST_ON 1
+%assign EV_SFPMIN 2
+%elif SC_G1 > 0
+%assign EV_SFAST_ON 1
+%assign EV_SFPMIN (64 - SC_G0 + SC_G1 - 1) / SC_G1
+%if EV_SFPMIN < 2
+%assign EV_SFPMIN 2
+%endif
+%endif
+%endif
+%endif
+%ifdef SFASTVERIFY
+%ifdef WIN
+%error "SFASTVERIFY is a Linux test build"
+%endif
+%if EV_SFAST_ON == 0
+%error "SFASTVERIFY needs EV_SFAST=1 in a configuration where it acts (EV_SCALE2, no -DTUNE)"
+%endif
 %endif
 %assign EV_PASSB EV_THRMIN | EV_THRHANG | EV_THRPAWN | EV_THRRESTR | EV_THRQUEEN | EV_KDANGER | EV_PASSED2 | EV_SPACE | EV_KLINES     ; a second-pass term (ev_sideb) is on
 %assign EV_PINCALC EV_PINS | EV_KDANGER                                                                         ; pinned pieces are needed
@@ -2304,6 +2348,18 @@ SHARED kpk_bb, mateg
     mov [rsp+24], eax
 %%no:
 %endmacro
+; FILEFOLD bb, tmp: low byte of bb = files that have a bit in bb
+%macro FILEFOLD 2
+    mov %2, %1
+    shr %2, 32
+    or %1, %2
+    mov %2, %1
+    shr %2, 16
+    or %1, %2
+    mov %2, %1
+    shr %2, 8
+    or %1, %2
+%endmacro
 ; KDACC weight: king danger counters of a piece whose attacks are in rax (kept).  clobbers r10, r11
 %macro KDACC 1
 %if EV_KDANGER
@@ -3437,13 +3493,64 @@ section .text
     mov r15d, ecx
     xor r9d, r9d
     test ecx, ecx
+%if EV_BRSIGN
+    setle r9b
+    shl r9d, 3
+%else
     jg %%sw
     mov r9d, 8
 %%sw:
+%endif
+%if EV_SFAST_ON
+    ; EV_SFAST: factor 64 without ev_scale when s has pawns on both flanks (rules 1, 2, 4, the class rules and the one-flank terms
+    ; cannot apply) and at least EV_SFPMIN of them (rule 6 gives 64), the board does not hold exactly one queen (rule 5) and there is
+    ; no pair of opposite-coloured bishops (rule 3)
+    cmp byte [cnt+r9+1], EV_SFPMIN
+    jb %%slow
+    mov rax, [bbp+r9*8+8]
+    test rax, [ev_qside]
+    jz %%slow
+    test rax, [ev_kside]
+    jz %%slow
+    mov al, [cnt+5]
+    add al, [cnt+13]
+    cmp al, 1
+    je %%slow
+    cmp byte [cnt+3], 1
+    jne %%fast
+    cmp byte [cnt+11], 1
+    jne %%fast
+    mov rax, [bbp+24]
+    test rax, [ev_dark]
+    setnz al
+    mov rdx, [bbp+88]
+    test rdx, [ev_dark]
+    setnz dl
+    cmp al, dl
+    jne %%slow
+%%fast:
+%ifdef SFASTVERIFY
+    mov edi, [rsp+EV_NPASS]         ; test build: ev_scale must give 64 as well, else exit code 17
+    mov esi, [rsp+EVS+EV_NPASS]
+    call ev_scale
+    cmp eax, 64
+    je %%vok
+    mov eax, 231                    ; exit_group
+    mov edi, 17
+    syscall
+%%vok:
+%endif
+    mov r8d, 64
+    jmp %%scaled
+%%slow:
+%endif
     mov edi, [rsp+EV_NPASS]
     mov esi, [rsp+EVS+EV_NPASS]
     call ev_scale
     mov r8d, eax
+%if EV_SFAST_ON
+%%scaled:
+%endif
     mov eax, r14d
     mov ecx, r15d
     TAPER r8d
@@ -4379,6 +4486,49 @@ ev_sideb%1:
     mov r8d, 1
     shl r8, cl
     dec r8                          ; r8 = squares below their king
+%if EV_KLBITS
+    lea ecx, [rax-1]
+    mov edi, 7
+    shl edi, cl                     ; edi = the three files (one bit per file)
+    mov r11, [rbx+EV_P]
+    and r11, r8                     ; r11 = our pawns below their king
+    mov r12, [rbx+EV_TP]
+    mov rdx, r12
+    and rdx, r8                     ; their pawns below their king
+    FILEFOLD rdx, rcx
+    not edx
+    and edx, edi                    ; edx = files without their pawn below the king
+    mov r13, r11
+    FILEFOLD r13, rcx
+    not r13d
+    and r13d, edx                   ; ... and without ours
+    POPC r14, r13, rsi
+    TERM EV_KLOPEN, r14
+    mov rcx, 0x0101010101010101
+    imul rdx, rcx                   ; file bits -> whole files
+    imul rdi, rcx
+    mov rax, [rbx+EV_RB]
+    or rax, [rbx+EV_QB]
+    and rax, rdx
+    POPC r14, rax, rsi
+    TERM EV_KLHEAVY, r14
+    shr r8, 24                      ; squares more than 3 ranks below their king
+    not r8
+    and r11, r8                     ; our pawns 1..3 ranks below
+    mov rax, r11
+    shr rax, 8
+    mov rdx, r11
+    shr rdx, 16
+    or rax, rdx
+    not rax
+    and r11, rax                    ; the one nearest to the king on each file
+    shr r12, 8
+    not r12
+    and r11, r12                    ; not blocked by their pawn
+    and r11, rdi
+    POPC r14, r11, rsi
+    TERM EV_KLSTORM, r14
+%else
     mov r9, [rbx+EV_P]
     and r9, r8                      ; r9 = our pawns below their king
     and r8, [rbx+EV_TP]             ; r8 = their pawns below their king
@@ -4422,6 +4572,7 @@ ev_sideb%1:
     TERM EV_KLOPEN, r11
     TERM EV_KLSTORM, r12
     TERM EV_KLHEAVY, r13
+%endif
 %endif
 %if EV_PASSED2
     ; ---- passed pawns, second pass
@@ -4745,10 +4896,18 @@ ev_eval%1:
     add eax, ecx
     sar eax, 10
 %endif
+%if EV_BRSIGN
+    mov ecx, eax
+    neg ecx
+    cmp dword [stm], 0
+    cmovne eax, ecx
+%else
     cmp dword [stm], 0
     je .w
     neg eax
-.w: add eax, TEMPO
+.w:
+%endif
+    add eax, TEMPO
     add rsp, 2*EVS+32
     pop r15
     pop r14
